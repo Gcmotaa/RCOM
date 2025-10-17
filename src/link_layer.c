@@ -13,6 +13,7 @@
 #define FALSE 0
 #define TRUE 1
 
+// alarm globaçl variables
 int alarmEnabled = FALSE;
 int alarmCount = 0;
 
@@ -50,6 +51,9 @@ typedef enum {
 } recieving_I_state;
 
 int Ns = 0;
+
+// connection parameters
+LinkLayer parameters;
 
 //////////////////////////////////
 /// FRAME RECIEVING STATE MACHINES  
@@ -157,6 +161,8 @@ void alarmHandler(int signal)
 ////////////////////////////////////////////////
 int llopen(LinkLayer connectionParameters)
 {
+    parameters = connectionParameters;
+
     if(openSerialPort(connectionParameters.serialPort, connectionParameters.baudRate) <0){
         return -1;
     }
@@ -218,6 +224,7 @@ int llwrite(const unsigned char *buf, int bufSize)
 
     finalSize += 2;
 
+    // set the alarm function handler
     struct sigaction act = {0};
     act.sa_handler = &alarmHandler;
     if (sigaction(SIGALRM, &act, NULL) == -1)
@@ -226,7 +233,15 @@ int llwrite(const unsigned char *buf, int bufSize)
         return -1;
     }
 
-    if(writeBytesSerialPort(bytes, finalSize) != finalSize) return -1;
+    while (alarmCount < parameters.nRetransmissions)
+    {
+        if(writeBytesSerialPort(bytes, finalSize) != finalSize) return -1;
+        if (alarmEnabled == FALSE)
+        {
+            alarm(parameters.timeout); // Set alarm to be triggered in timeout
+            alarmEnabled = TRUE;
+        }
+    }
 
     return 0;
 }
@@ -238,7 +253,7 @@ int llread(unsigned char *packet)
 {
     recieving_I_state state = INITIAL_I;
     unsigned char *header = malloc(2 * sizeof(unsigned char));
-    int destuffing = 0;
+    int destuffing = FALSE;
     int index = 0;
     unsigned char expected_bcc2 = 0x0;
     unsigned char* reply = malloc(4 * sizeof(unsigned char));
@@ -246,7 +261,18 @@ int llread(unsigned char *packet)
     *(reply) = F;
     *(reply+1) = A_T_COMMAND;
 
-    while (state != END_I){
+    struct sigaction act = {0};
+    act.sa_handler = &alarmHandler;
+    if (sigaction(SIGALRM, &act, NULL) == -1)
+    {
+        perror("sigaction");
+        return -1;
+    }
+
+    alarmEnabled = TRUE;
+    alarm(parameters.timeout);
+
+    while (state != END_I && alarmEnabled){
         unsigned char byte;
         int nBytes = readByteSerialPort(&byte);
 
@@ -262,13 +288,13 @@ int llread(unsigned char *packet)
 
             if(state == RECEIVING_DATA){
                 if(byte == ESCAPE_OCTET){
-                    destuffing = 1; //the next byte will need to be reworked
+                    destuffing = TRUE; //the next byte will need to be reworked
                     continue;
                 }
                 
-                if(destuffing == 1){
+                if(destuffing == TRUE){
                     byte = byte || 0x20;
-                    destuffing = 0;
+                    destuffing = FALSE;
                 }
 
                 *(packet + index) = byte; //put the byte in the packet
@@ -280,6 +306,8 @@ int llread(unsigned char *packet)
             }
         }
     }
+
+    if(state != END_I) return -1; //got out of the cycle because of timeout
 
     //we have read all the bytes, we need to confirm bcc2
     if(*(packet+index-1) == expected_bcc2){
