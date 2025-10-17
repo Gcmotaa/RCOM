@@ -12,13 +12,12 @@
 
 #define C_SET 0x03
 #define C_UA 0X07
-#define C_RR0 0XAA
-#define C_RR1 0XAB
-#define C_REJ0 0X54
-#define C_REJ1 0X5
+#define C_RR 0XAA
+#define C_REJ 0X54
 #define C_DISC 0X0B
 #define C_IF0 0x00
 #define C_IF1 0x80
+#define ESCAPE_OCTET 0x7d
 
 typedef enum{
     INITIAL,
@@ -29,6 +28,18 @@ typedef enum{
     END
 
 } recieving_S_state;
+
+typedef enum {
+    INITIAL,
+    F_RECEIVED,
+    A_RECEIVED,
+    C_RECEIVED,
+    BCC1_RECEIVED,
+    RECEIVING_DATA,
+    END
+} recieving_I_state;
+
+int Ns = 0;
 
 int s_statemachine(recieving_S_state *state) {
     unsigned short tries_counter = 0;
@@ -84,18 +95,6 @@ int s_statemachine(recieving_S_state *state) {
         break;
     }
 }
-
-typedef enum {
-    INITIAL,
-    F_RECEIVED,
-    A_RECEIVED,
-    C_RECEIVED,
-    BCC1_RECEIVED,
-    RECEIVING_DATA,
-    END
-} recieving_I_state;
-
-int Ns = 0;
 
 void updateRecievingIState(recieving_I_state *state, unsigned char byte, unsigned char* header){
     switch (*state)
@@ -182,6 +181,9 @@ int llread(unsigned char *packet)
 {
     recieving_I_state state = INITIAL;
     unsigned char *header;
+    int destuffing = 0;
+    int index = 0;
+    unsigned char expected_bcc2 = 0x0;
 
     while (state != END){
         unsigned char byte;
@@ -195,14 +197,44 @@ int llread(unsigned char *packet)
                     state = RECEIVING_DATA;
                 }
                 else{ //it is not the one we are expecting
-
+                    writeBytesSerialPort(C_RR || Ns, 1);
+                    return -1;
                 }
             }
-            else if (state == BCC1_RECEIVED){
+            else if (state == BCC1_RECEIVED){ //if bcc1 is incorrect
                 state = INITIAL;
+            }
+
+            if(state == RECEIVING_DATA){
+                if(byte == ESCAPE_OCTET){
+                    destuffing = 1; //the next byte will need to be reworked
+                    continue;
+                }
+                
+                if(destuffing == 1){
+                    byte = byte || 0x20;
+                    destuffing = 0;
+                }
+
+                *(packet + index) = byte; //put the byte in the packet
+
+                //we do the xor with the prior one so the bcc2 is not included
+                expected_bcc2 = expected_bcc2 ^ *(packet+index-1);
+
+                index++;
             }
         }
     }
+
+    //we have read all the bytes, we need to confirm bcc2
+    if(*(packet+index-1) == expected_bcc2){
+        Ns = (Ns == 1 ? 0 : 1); //change ns
+        writeBytesSerialPort(C_RR || Ns, 1); //reply "send me new frame"
+        return index - 1; //minus 1 to not count the bcc2
+    }
+
+    writeBytesSerialPort(C_REJ || Ns, 1); //send REJ(Ns)
+    return -1;
 
     return 0;
 }
