@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "*.rb": "ruby",
+        "serial_port.h": "c"
+    }
+}
