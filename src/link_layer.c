@@ -2,9 +2,21 @@
 
 #include "link_layer.h"
 #include "serial_port.h"
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 // MISC
 #define _POSIX_SOURCE 1 // POSIX compliant source
+
+#define FALSE 0
+#define TRUE 1
+
+int alarmEnabled = FALSE;
+int alarmCount = 0;
+
+// Packet values
 #define F 0x7E
 
 #define A_T_COMMAND 0x03
@@ -18,75 +30,76 @@
 #define ESCAPE_OCTET 0x7d
 
 typedef enum{
-    INITIAL,
+    INITIAL_S,
     RECEIVED_F,
     RECEIVED_A,
     RECEIVED_C,
     RECEIVED_BCC1,
-    END
+    END_S
 
 } recieving_S_state;
 
 typedef enum {
-    INITIAL,
+    INITIAL_I,
     F_RECEIVED,
     A_RECEIVED,
     C_RECEIVED,
     BCC1_RECEIVED,
     RECEIVING_DATA,
-    END
+    END_I
 } recieving_I_state;
 
 int Ns = 0;
 
+//////////////////////////////////
+/// FRAME RECIEVING STATE MACHINES  
+//////////////////////////////////
 int s_statemachine(recieving_S_state *state) {
     unsigned short tries_counter = 0;
+    unsigned char byte;
+    int bytes;
+
     switch (*state)
     {
-    case INITIAL:
-        unsigned char byte;
-        int bytes = readByteSerialPort(&byte);
+    case INITIAL_S:
+        bytes = readByteSerialPort(&byte);
 
         if(bytes == 1) {
-            if(byte == F) state = RECEIVED_F;
+            if(byte == F) *state = RECEIVED_F;
         }
         break;
     case RECEIVED_F:
-        unsigned char byte;
-        int bytes = readByteSerialPort(&byte);
+        bytes = readByteSerialPort(&byte);
 
         if(bytes == 1) {
-            if(byte == A_T_COMMAND) state = RECEIVED_A;
-            else state = INITIAL;
+            if(byte == A_T_COMMAND) *state = RECEIVED_A;
+            else *state = INITIAL_S;
         }
         break;
     case RECEIVED_A:
 
     //CONTINUE HERE
-        unsigned char byte;
-        int bytes = readByteSerialPort(&byte);
+        bytes = readByteSerialPort(&byte);
 
         if(bytes == 1) {
-            if(byte == F) state = RECEIVED_F;
+            if(byte == F) *state = RECEIVED_F;
         }
         break;
     case RECEIVED_C:
-        unsigned char byte;
-        int bytes = readByteSerialPort(&byte);
+        bytes = readByteSerialPort(&byte);
 
         if(bytes == 1) {
-            if(byte == F) state = RECEIVED_F;
+            if(byte == F) *state = RECEIVED_F;
         }
         break;
     case RECEIVED_BCC1:
-        unsigned char byte;
-        int bytes = readByteSerialPort(&byte);
+        bytes = readByteSerialPort(&byte);
 
         if(bytes == 1) {
-            if(byte == F) state = RECEIVED_F;
+            if(byte == F) *state = RECEIVED_F;
         }
         break;
-    case END:
+    case END_S:
 
         break;
     default:
@@ -97,7 +110,7 @@ int s_statemachine(recieving_S_state *state) {
 void updateRecievingIState(recieving_I_state *state, unsigned char byte, unsigned char* header){
     switch (*state)
     {
-    case INITIAL:
+    case INITIAL_I:
         if (byte == F){
             *state = F_RECEIVED;
         }
@@ -121,13 +134,22 @@ void updateRecievingIState(recieving_I_state *state, unsigned char byte, unsigne
 
     case RECEIVING_DATA:
         if(byte == F){
-            *state = END;
+            *state = END_I;
         }
         break;
     
     default:
         break;
     }
+}
+
+//////////////////////////////////////////////
+/// ALARM HANDLER
+//////////////////////////////////////////////
+void alarmHandler(int signal)
+{
+    alarmEnabled = FALSE;
+    alarmCount++;
 }
 
 ////////////////////////////////////////////////
@@ -148,7 +170,7 @@ int llopen(LinkLayer connectionParameters)
 
         sleep(1);
 
-        recieving_S_state state = INITIAL;
+        recieving_S_state state = INITIAL_S;
 
         break;
     case LlRx:
@@ -168,7 +190,7 @@ int llopen(LinkLayer connectionParameters)
 int llwrite(const unsigned char *buf, int bufSize)
 {
     unsigned char bcc2 = 0;
-    unsigned char *bytes;
+    unsigned char *bytes = malloc((bufSize*2 + 5) * sizeof(unsigned char));
     int finalSize = 4;
 
     *bytes = F;
@@ -191,6 +213,19 @@ int llwrite(const unsigned char *buf, int bufSize)
         finalSize++;
     }
 
+    *(bytes+finalSize) = bcc2;
+    *(bytes+finalSize+1) = F;
+
+    finalSize += 2;
+
+    struct sigaction act = {0};
+    act.sa_handler = &alarmHandler;
+    if (sigaction(SIGALRM, &act, NULL) == -1)
+    {
+        perror("sigaction");
+        return -1;
+    }
+
     if(writeBytesSerialPort(bytes, finalSize) != finalSize) return -1;
 
     return 0;
@@ -201,13 +236,17 @@ int llwrite(const unsigned char *buf, int bufSize)
 ////////////////////////////////////////////////
 int llread(unsigned char *packet)
 {
-    recieving_I_state state = INITIAL;
-    unsigned char *header;
+    recieving_I_state state = INITIAL_I;
+    unsigned char *header = malloc(2 * sizeof(unsigned char));
     int destuffing = 0;
     int index = 0;
     unsigned char expected_bcc2 = 0x0;
+    unsigned char* reply = malloc(4 * sizeof(unsigned char));
 
-    while (state != END){
+    *(reply) = F;
+    *(reply+1) = A_T_COMMAND;
+
+    while (state != END_I){
         unsigned char byte;
         int nBytes = readByteSerialPort(&byte);
 
@@ -218,7 +257,7 @@ int llread(unsigned char *packet)
                 state = RECEIVING_DATA;
             }
             else if (state == BCC1_RECEIVED){ //if bcc1 is incorrect
-                state = INITIAL;
+                state = INITIAL_I;
             }
 
             if(state == RECEIVING_DATA){
@@ -242,20 +281,16 @@ int llread(unsigned char *packet)
         }
     }
 
-    if(*(header+1) == Ns << 7){ //check if the ns we received are the one we are expecting
-                    state = RECEIVING_DATA;
-                }
-                else{ //it is not the one we are expecting
-                    writeBytesSerialPort(C_RR || Ns, 1);
-                    return -1;
-                }
-
     //we have read all the bytes, we need to confirm bcc2
     if(*(packet+index-1) == expected_bcc2){
 
         if(*(header+1) == Ns << 7){ //check if the ns we received are the one we are expecting
             Ns = (Ns == 1 ? 0 : 1); //change ns
-            writeBytesSerialPort(C_RR || Ns, 1); //reply "send me new frame"
+
+            *(reply+2) = C_RR || Ns;
+            *(reply+3) = *(reply+1) ^ *(reply+2);
+
+            writeBytesSerialPort(reply, 4); //reply "send me new frame"
             return index - 1; //minus 1 to not count the bcc2
         }
         else{ //it is not the one we are expecting
@@ -265,11 +300,17 @@ int llread(unsigned char *packet)
     }
 
     if(*(header+1) == Ns << 7){ //check if the ns we received are the one we are expecting
-        writeBytesSerialPort(C_REJ || Ns, 1); //send REJ(Ns)
+        *(reply+2) = C_REJ || Ns;
+        *(reply+3) = *(reply+1) ^ *(reply+2);
+
+        writeBytesSerialPort(reply, 4); //send REJ(Ns)
         return -1;
     }
     else{ //it is not the one we are expecting
-        writeBytesSerialPort(C_RR || Ns, 1);
+        *(reply+2) = C_RR || Ns;
+        *(reply+3) = *(reply+1) ^ *(reply+2);
+
+        writeBytesSerialPort(reply, 4); //reply "send me new frame"
         return 0;
     }
 }
