@@ -15,8 +15,6 @@
 #define C_RR 0XAA
 #define C_REJ 0X54
 #define C_DISC 0X0B
-#define C_IF0 0x00
-#define C_IF1 0x80
 #define ESCAPE_OCTET 0x7d
 
 typedef enum{
@@ -169,7 +167,31 @@ int llopen(LinkLayer connectionParameters)
 ////////////////////////////////////////////////
 int llwrite(const unsigned char *buf, int bufSize)
 {
-    // TODO: Implement this function
+    unsigned char bcc2 = 0;
+    unsigned char *bytes;
+    int finalSize = 4;
+
+    *bytes = F;
+    *(bytes+1) = A_T_COMMAND;
+    *(bytes+2) = Ns << 7;
+    *(bytes+3) = A_T_COMMAND ^ (Ns << 7);
+
+    for(int i = 0; i < bufSize; i++){
+        bcc2 = bcc2 ^ *(buf+i);
+
+        if(*(buf+i) == 0x7e || *(buf+i) == 0x7d){ //if we need byte stuffing
+            *(bytes+finalSize) = 0x7d;
+            *(bytes+finalSize+1) = *(buf+i) ^ 0x20;
+
+            finalSize += 2;
+            continue;
+        }
+
+        *(bytes+finalSize) = *(buf+i);
+        finalSize++;
+    }
+
+    if(writeBytesSerialPort(bytes, finalSize) != finalSize) return -1;
 
     return 0;
 }
