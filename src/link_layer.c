@@ -193,13 +193,7 @@ int llread(unsigned char *packet)
             updateRecievingIState(&state, byte, header);
 
             if(state == BCC1_RECEIVED && byte == (*header ^ *(header+1))){ //check if bcc1 is correct
-                if(*(header+1) == Ns << 7){ //check if the ns we received are the one we are expecting
-                    state = RECEIVING_DATA;
-                }
-                else{ //it is not the one we are expecting
-                    writeBytesSerialPort(C_RR || Ns, 1);
-                    return -1;
-                }
+                state = RECEIVING_DATA;
             }
             else if (state == BCC1_RECEIVED){ //if bcc1 is incorrect
                 state = INITIAL;
@@ -226,17 +220,36 @@ int llread(unsigned char *packet)
         }
     }
 
+    if(*(header+1) == Ns << 7){ //check if the ns we received are the one we are expecting
+                    state = RECEIVING_DATA;
+                }
+                else{ //it is not the one we are expecting
+                    writeBytesSerialPort(C_RR || Ns, 1);
+                    return -1;
+                }
+
     //we have read all the bytes, we need to confirm bcc2
     if(*(packet+index-1) == expected_bcc2){
-        Ns = (Ns == 1 ? 0 : 1); //change ns
-        writeBytesSerialPort(C_RR || Ns, 1); //reply "send me new frame"
-        return index - 1; //minus 1 to not count the bcc2
+
+        if(*(header+1) == Ns << 7){ //check if the ns we received are the one we are expecting
+            Ns = (Ns == 1 ? 0 : 1); //change ns
+            writeBytesSerialPort(C_RR || Ns, 1); //reply "send me new frame"
+            return index - 1; //minus 1 to not count the bcc2
+        }
+        else{ //it is not the one we are expecting
+            return 0;
+        }
+       
     }
 
-    writeBytesSerialPort(C_REJ || Ns, 1); //send REJ(Ns)
-    return -1;
-
-    return 0;
+    if(*(header+1) == Ns << 7){ //check if the ns we received are the one we are expecting
+        writeBytesSerialPort(C_REJ || Ns, 1); //send REJ(Ns)
+        return -1;
+    }
+    else{ //it is not the one we are expecting
+        writeBytesSerialPort(C_RR || Ns, 1);
+        return 0;
+    }
 }
 
 ////////////////////////////////////////////////
