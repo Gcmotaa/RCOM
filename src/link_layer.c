@@ -21,12 +21,14 @@ int alarmCount = 0;
 #define F 0x7E
 
 #define A_T_COMMAND 0x03
-#define T_R_COMMAND 0x01
+#define A_R_COMMAND 0x01
 
 #define C_SET 0x03
 #define C_UA 0X07
-#define C_RR 0XAA
-#define C_REJ 0X54
+#define C_RR0 0XAA
+#define C_RR1 0XAB
+#define C_REJ0 0X54
+#define C_REJ1 0X55
 #define C_DISC 0X0B
 #define ESCAPE_OCTET 0x7d
 
@@ -37,8 +39,13 @@ typedef enum{
     RECEIVED_C,
     RECEIVED_BCC1,
     END_S
+} S_States;
 
-} recieving_S_state;
+typedef struct{
+    S_States state;
+    unsigned char A;
+    unsigned char C;
+} recieving_S_sm;
 
 typedef enum {
     INITIAL_I,
@@ -58,55 +65,57 @@ LinkLayer parameters;
 //////////////////////////////////
 /// FRAME RECIEVING STATE MACHINES  
 //////////////////////////////////
-int s_statemachine(recieving_S_state *state) {
-    unsigned short tries_counter = 0;
+void s_statemachine(recieving_S_sm *sm) {
     unsigned char byte;
     int bytes;
+    bytes = readByteSerialPort(&byte);
 
-    switch (*state)
+    switch (sm->state)
     {
     case INITIAL_S:
-        bytes = readByteSerialPort(&byte);
-
         if(bytes == 1) {
-            if(byte == F) *state = RECEIVED_F;
+            if(byte == F) sm->state = RECEIVED_F;
         }
         break;
+
     case RECEIVED_F:
-        bytes = readByteSerialPort(&byte);
-
         if(bytes == 1) {
-            if(byte == A_T_COMMAND) *state = RECEIVED_A;
-            else *state = INITIAL_S;
+            if(byte == A_T_COMMAND || byte == A_R_COMMAND) {
+                sm->state = RECEIVED_A;
+                sm->A = byte;
+            }
+            else sm->state = INITIAL_S;
         }
         break;
+
     case RECEIVED_A:
-
-    //CONTINUE HERE
-        bytes = readByteSerialPort(&byte);
-
         if(bytes == 1) {
-            if(byte == F) *state = RECEIVED_F;
+            if(byte == C_SET || byte == C_UA ||
+                byte == C_RR0 || byte == C_RR1 ||
+                byte == C_REJ0 || byte == C_REJ1 ||
+                byte == C_DISC){
+                sm->state = RECEIVED_C;
+                sm->C = byte;
+                }
         }
         break;
+
     case RECEIVED_C:
-        bytes = readByteSerialPort(&byte);
-
         if(bytes == 1) {
-            if(byte == F) *state = RECEIVED_F;
+            if(byte == (sm->A ^ sm->C)) 
+                sm->state = RECEIVED_BCC1;
         }
         break;
-    case RECEIVED_BCC1:
-        bytes = readByteSerialPort(&byte);
 
+    case RECEIVED_BCC1:
         if(bytes == 1) {
-            if(byte == F) *state = RECEIVED_F;
+            if(byte == F) sm->state = END_S;
         }
         break;
     case END_S:
-
         break;
     default:
+        printf("state is NULL\n");
         break;
     }
 }
@@ -157,6 +166,38 @@ void alarmHandler(int signal)
 }
 
 ////////////////////////////////////////////////
+// UTILS
+////////////////////////////////////////////////
+
+//@return 0 on success, -1 otherwise
+//@param max_tries: number of attempts before giving up
+//@param timeout: time(microseconds) between attempts
+int receive_S(unsigned char A, unsigned char C, int max_tries, int timeout) {
+    recieving_S_sm sm;
+    sm.state = INITIAL_S;
+    S_States previous_state = INITIAL_S;
+
+    int current_tries = 0;
+    while (current_tries < max_tries) {
+        s_statemachine(&sm);
+        if(sm.state == RECEIVED_A && sm.A != A) {
+            sm.state = INITIAL_S;
+        }
+        else if(sm.state == RECEIVED_C && sm.C != C) {
+            sm.state = INITIAL_S;
+        }
+        else if(sm.state == END_S){
+            return 0;
+        }
+        if(previous_state == sm.state) {
+            ++current_tries;
+            usleep(timeout);
+        }
+    }
+    return -1;
+}
+
+////////////////////////////////////////////////
 // LLOPEN
 ////////////////////////////////////////////////
 int llopen(LinkLayer connectionParameters)
@@ -172,15 +213,23 @@ int llopen(LinkLayer connectionParameters)
     case LlTx:
         unsigned char buf[5] = {F, A_T_COMMAND, C_SET, A_T_COMMAND ^ C_SET, F};
 
+        //should i sleep before this?
         int bytes = writeBytesSerialPort(buf, 5);
 
+        //wait a second before advancing
         sleep(1);
 
-        recieving_S_state state = INITIAL_S;
+        //receive UA
+        return receive_S(A_R_COMMAND, C_UA, 4, 250);
 
         break;
     case LlRx:
         
+        receive_S(A_R_COMMAND, C_UA, 10, 500);
+
+        unsigned char buf[5] = {F, A_R_COMMAND, C_UA, A_R_COMMAND ^ C_UA, F};
+
+        int bytes = writeBytesSerialPort(buf, 5);
         break;
     default:
         return -1;

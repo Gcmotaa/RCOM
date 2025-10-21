@@ -2,5 +2,6 @@
     "files.associations": {
         "*.rb": "ruby",
         "serial_port.h": "c"
-    }
+    },
+    "C_Cpp.default.compilerPath": "/usr/bin/gcc"
 }
