@@ -397,7 +397,35 @@ int llread(unsigned char *packet)
 ////////////////////////////////////////////////
 int llclose()
 {
-    // TODO: Implement this function
+    switch (parameters.role)
+    {
+    case LlTx:
+        unsigned char disc[5] = {F, A_T_COMMAND, C_DISC, A_T_COMMAND ^ C_DISC, F};
+        
+        writeBytesSerialPort(disc, 5);
+
+        usleep(500);
+
+        receive_S(A_R_COMMAND, C_DISC, 10, 500);
+
+        unsigned char UA[5] = {F, A_T_COMMAND, C_UA, A_T_COMMAND ^ C_UA, F};
+
+        writeBytesSerialPort(UA,5);
+
+        closeSerialPort();
+        break;
+    case LlRx:
+        receive_S(A_T_COMMAND, C_DISC, 10, 500);
+  
+        unsigned char dics[5] = {F, A_R_COMMAND, C_DISC, A_R_COMMAND ^ C_DISC, F};
+
+        writeBytesSerialPort(disc,5);
+        break;
+    default:
+        printf("llclose error: role not defined\n");
+        return -1;
+        break;
+    }
 
     return 0;
 }
