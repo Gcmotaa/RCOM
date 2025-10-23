@@ -220,14 +220,14 @@ int llopen(LinkLayer connectionParameters)
         sleep(1);
 
         //receive UA
-        return receive_S(A_R_COMMAND, C_UA, 4, 250);
+        return receive_S(A_T_COMMAND, C_UA, 4, 250);
 
         break;
     case LlRx:
         
         receive_S(A_R_COMMAND, C_UA, 10, 500);
 
-        unsigned char buf[5] = {F, A_R_COMMAND, C_UA, A_R_COMMAND ^ C_UA, F};
+        unsigned char buf[5] = {F, A_T_COMMAND, C_UA, A_T_COMMAND ^ C_UA, F};
 
         int bytes = writeBytesSerialPort(buf, 5);
         break;
@@ -402,24 +402,33 @@ int llclose()
     case LlTx:
         unsigned char disc[5] = {F, A_T_COMMAND, C_DISC, A_T_COMMAND ^ C_DISC, F};
         
+        //send disc
         writeBytesSerialPort(disc, 5);
 
         usleep(500);
 
+        //receive disc
         receive_S(A_R_COMMAND, C_DISC, 10, 500);
 
-        unsigned char UA[5] = {F, A_T_COMMAND, C_UA, A_T_COMMAND ^ C_UA, F};
-
+        unsigned char UA[5] = {F, A_R_COMMAND, C_UA, A_R_COMMAND ^ C_UA, F};
+        //send UA
         writeBytesSerialPort(UA,5);
 
         closeSerialPort();
         break;
     case LlRx:
+        //receive the disc
         receive_S(A_T_COMMAND, C_DISC, 10, 500);
   
         unsigned char dics[5] = {F, A_R_COMMAND, C_DISC, A_R_COMMAND ^ C_DISC, F};
 
+        //send disc
         writeBytesSerialPort(disc,5);
+
+        usleep(500);
+        //receive UA
+        receive_S(A_R_COMMAND, C_UA, 4, 250);
+        closeSerialPort();
         break;
     default:
         printf("llclose error: role not defined\n");
