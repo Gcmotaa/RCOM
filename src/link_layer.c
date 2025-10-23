@@ -209,10 +209,10 @@ int llopen(LinkLayer connectionParameters)
     switch (connectionParameters.role)
     {
     case LlTx:
-        unsigned char buf[5] = {F, A_T_COMMAND, C_SET, A_T_COMMAND ^ C_SET, F};
+        unsigned char set[5] = {F, A_T_COMMAND, C_SET, A_T_COMMAND ^ C_SET, F};
 
         //should i sleep before this?
-        int bytes = writeBytesSerialPort(buf, 5);
+        writeBytesSerialPort(set, 5);
 
         //wait a second before advancing
         sleep(1);
@@ -225,9 +225,10 @@ int llopen(LinkLayer connectionParameters)
         
         receive_S(A_R_COMMAND, C_UA, 10, 500);
 
-        unsigned char buf[5] = {F, A_T_COMMAND, C_UA, A_T_COMMAND ^ C_UA, F};
+        unsigned char ua[5] = {F, A_T_COMMAND, C_UA, A_T_COMMAND ^ C_UA, F};
 
-        int bytes = writeBytesSerialPort(buf, 5);
+        //send UA
+        writeBytesSerialPort(ua, 5);
         break;
     default:
         return -1;
@@ -411,10 +412,10 @@ int llclose()
     switch (parameters.role)
     {
     case LlTx:
-        unsigned char disc[5] = {F, A_T_COMMAND, C_DISC, A_T_COMMAND ^ C_DISC, F};
+        unsigned char discT[5] = {F, A_T_COMMAND, C_DISC, A_T_COMMAND ^ C_DISC, F};
         
         //send disc
-        writeBytesSerialPort(disc, 5);
+        writeBytesSerialPort(discT, 5);
 
         usleep(500);
 
@@ -431,10 +432,10 @@ int llclose()
         //receive the disc
         receive_S(A_T_COMMAND, C_DISC, 10, 500);
   
-        unsigned char dics[5] = {F, A_R_COMMAND, C_DISC, A_R_COMMAND ^ C_DISC, F};
+        unsigned char discR[5] = {F, A_R_COMMAND, C_DISC, A_R_COMMAND ^ C_DISC, F};
 
         //send disc
-        writeBytesSerialPort(disc,5);
+        writeBytesSerialPort(discR,5);
 
         usleep(500);
         //receive UA
