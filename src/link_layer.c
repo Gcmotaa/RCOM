@@ -25,10 +25,8 @@ int alarmCount = 0;
 
 #define C_SET 0x03
 #define C_UA 0X07
-#define C_RR0 0XAA
-#define C_RR1 0XAB
-#define C_REJ0 0X54
-#define C_REJ1 0X55
+#define C_RR 0XAA
+#define C_REJ 0X54
 #define C_DISC 0X0B
 #define ESCAPE_OCTET 0x7d
 
@@ -91,8 +89,8 @@ void s_statemachine(recieving_S_sm *sm) {
     case RECEIVED_A:
         if(bytes == 1) {
             if(byte == C_SET || byte == C_UA ||
-                byte == C_RR0 || byte == C_RR1 ||
-                byte == C_REJ0 || byte == C_REJ1 ||
+                byte == C_RR || byte == (C_RR || 0x01) ||
+                byte == C_REJ || byte == (C_REJ || 0x01) ||
                 byte == C_DISC){
                 sm->state = RECEIVED_C;
                 sm->C = byte;
@@ -247,6 +245,7 @@ int llwrite(const unsigned char *buf, int bufSize)
     unsigned char bcc2 = 0;
     unsigned char *bytes = malloc((bufSize*2 + 5) * sizeof(unsigned char));
     int finalSize = 4;
+    int nextNs = (Ns == 0 ? 1 : 0);
 
     *bytes = F;
     *(bytes+1) = A_T_COMMAND;
@@ -285,14 +284,25 @@ int llwrite(const unsigned char *buf, int bufSize)
     while (alarmCount < parameters.nRetransmissions)
     {
         if(writeBytesSerialPort(bytes, finalSize) != finalSize) return -1;
-        if (alarmEnabled == FALSE)
-        {
-            alarm(parameters.timeout); // Set alarm to be triggered in timeout
-            alarmEnabled = TRUE;
+
+        recieving_S_sm sm;
+        sm.state = INITIAL_S;
+
+        while (alarmEnabled && sm.state != END_S){
+            s_statemachine(&sm);
         }
+
+        if (sm.C == (C_RR || nextNs)){ //the frame was correctly recieved
+            return bufSize;
+        }
+
+        //reset the alarm, for if the recieved was C_REJ or C_RR of current Ns, so that the alarm resets
+        alarm(parameters.timeout);
+        alarmEnabled = TRUE;
+
     }
 
-    return 0;
+    return -1;
 }
 
 ////////////////////////////////////////////////
