@@ -293,6 +293,7 @@ int llwrite(const unsigned char *buf, int bufSize)
         }
 
         if (sm.C == (C_RR || nextNs)){ //the frame was correctly recieved
+            Ns = nextNs; //will send a new frame with a new ns
             return bufSize;
         }
 
