@@ -8,6 +8,11 @@
 #include <sys/stat.h>
 
 void applicationReciever(){
+    while (TRUE)
+    {
+        //int bytes = llread();
+    }
+    
     //still have to read the filename
     /*
     //open the file in read mode

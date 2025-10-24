@@ -221,7 +221,7 @@ int llopen(LinkLayer connectionParameters)
     case LlTx:
         unsigned char set[5] = {F, A_T_COMMAND, C_SET, A_T_COMMAND ^ C_SET, F};
 
-        writeBytesSerialPort(set, 5);
+        if(writeBytesSerialPort(set, 5) != 5) return -1;
 
         //receive UA
         return receive_S(A_T_COMMAND, C_UA, connectionParameters.nRetransmissions, connectionParameters.timeout);
@@ -229,12 +229,12 @@ int llopen(LinkLayer connectionParameters)
         break;
     case LlRx:
         
-        receive_S(A_T_COMMAND, C_SET, connectionParameters.nRetransmissions, connectionParameters.timeout);
+        if(receive_S(A_T_COMMAND, C_SET, connectionParameters.nRetransmissions, connectionParameters.timeout) != 0) return -1;
 
         unsigned char ua[5] = {F, A_T_COMMAND, C_UA, A_T_COMMAND ^ C_UA, F};
 
         //send UA
-        writeBytesSerialPort(ua, 5);
+        if(writeBytesSerialPort(ua, 5) != 5) return -1;
         break;
     default:
         return -1;
@@ -285,6 +285,7 @@ int llwrite(const unsigned char *buf, int bufSize)
     if (sigaction(SIGALRM, &act, NULL) == -1)
     {
         perror("sigaction");
+        free(bytes);
         return -1;
     }
 
@@ -292,7 +293,10 @@ int llwrite(const unsigned char *buf, int bufSize)
 
     while (alarmCount < parameters.nRetransmissions)
     {
-        if(writeBytesSerialPort(bytes, finalSize) != finalSize) return -1;
+        if(writeBytesSerialPort(bytes, finalSize) != finalSize) {
+            free(bytes);
+            return -1;
+        }
 
         recieving_S_sm sm;
         sm.state = INITIAL_S;
@@ -303,6 +307,7 @@ int llwrite(const unsigned char *buf, int bufSize)
 
         if (sm.C == (C_RR || nextNs)){ //the frame was correctly recieved
             Ns = nextNs; //will send a new frame with a new ns
+            free(bytes);
             return bufSize;
         }
 
@@ -311,7 +316,7 @@ int llwrite(const unsigned char *buf, int bufSize)
         alarmEnabled = TRUE;
 
     }
-
+    free(bytes);
     return -1;
 }
 
@@ -321,11 +326,11 @@ int llwrite(const unsigned char *buf, int bufSize)
 int llread(unsigned char *packet)
 {
     recieving_I_state state = INITIAL_I;
-    unsigned char *header = malloc(2 * sizeof(unsigned char));
+    unsigned char header[2];
     int destuffing = FALSE;
     int index = 0;
     unsigned char expected_bcc2 = 0x0;
-    unsigned char* reply = malloc(4 * sizeof(unsigned char));
+    unsigned char reply[4];
 
     *(reply) = F;
     *(reply+1) = A_T_COMMAND;
@@ -423,28 +428,28 @@ int llclose()
         unsigned char discT[5] = {F, A_T_COMMAND, C_DISC, A_T_COMMAND ^ C_DISC, F};
         
         //send disc
-        writeBytesSerialPort(discT, 5);
+        if(writeBytesSerialPort(discT, 5) != 5) return -1;
 
         //receive disc
-        receive_S(A_R_COMMAND, C_DISC, parameters.nRetransmissions, parameters.timeout);
+        if(receive_S(A_R_COMMAND, C_DISC, parameters.nRetransmissions, parameters.timeout) != 0) return -1;
 
         unsigned char UA[5] = {F, A_R_COMMAND, C_UA, A_R_COMMAND ^ C_UA, F};
         //send UA
-        writeBytesSerialPort(UA,5);
+        if(writeBytesSerialPort(UA,5) != 5 ) return -1;
 
         closeSerialPort();
         break;
     case LlRx:
         //receive the disc
-        receive_S(A_T_COMMAND, C_DISC, parameters.nRetransmissions, parameters.timeout);
+        if(receive_S(A_T_COMMAND, C_DISC, parameters.nRetransmissions, parameters.timeout) != 0) return -1;
   
         unsigned char discR[5] = {F, A_R_COMMAND, C_DISC, A_R_COMMAND ^ C_DISC, F};
 
         //send disc
-        writeBytesSerialPort(discR,5);
+        if (writeBytesSerialPort(discR,5) != 5) return -1;
 
         //receive UA
-        receive_S(A_R_COMMAND, C_UA, parameters.nRetransmissions, parameters.timeout);
+        if(receive_S(A_R_COMMAND, C_UA, parameters.nRetransmissions, parameters.timeout) != 0) return -1;
         closeSerialPort();
         break;
     default:
