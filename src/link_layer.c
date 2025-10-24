@@ -285,6 +285,7 @@ int llwrite(const unsigned char *buf, int bufSize)
     if (sigaction(SIGALRM, &act, NULL) == -1)
     {
         perror("sigaction");
+        free(bytes);
         return -1;
     }
 
@@ -292,7 +293,10 @@ int llwrite(const unsigned char *buf, int bufSize)
 
     while (alarmCount < parameters.nRetransmissions)
     {
-        if(writeBytesSerialPort(bytes, finalSize) != finalSize) return -1;
+        if(writeBytesSerialPort(bytes, finalSize) != finalSize) {
+            free(bytes);
+            return -1;
+        }
 
         recieving_S_sm sm;
         sm.state = INITIAL_S;
@@ -303,6 +307,7 @@ int llwrite(const unsigned char *buf, int bufSize)
 
         if (sm.C == (C_RR || nextNs)){ //the frame was correctly recieved
             Ns = nextNs; //will send a new frame with a new ns
+            free(bytes);
             return bufSize;
         }
 
@@ -311,7 +316,7 @@ int llwrite(const unsigned char *buf, int bufSize)
         alarmEnabled = TRUE;
 
     }
-
+    free(bytes);
     return -1;
 }
 
@@ -321,11 +326,11 @@ int llwrite(const unsigned char *buf, int bufSize)
 int llread(unsigned char *packet)
 {
     recieving_I_state state = INITIAL_I;
-    unsigned char *header = malloc(2 * sizeof(unsigned char));
+    unsigned char header[2];
     int destuffing = FALSE;
     int index = 0;
     unsigned char expected_bcc2 = 0x0;
-    unsigned char* reply = malloc(4 * sizeof(unsigned char));
+    unsigned char reply[4];
 
     *(reply) = F;
     *(reply+1) = A_T_COMMAND;
