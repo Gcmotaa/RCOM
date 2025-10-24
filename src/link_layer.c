@@ -274,10 +274,21 @@ int llwrite(const unsigned char *buf, int bufSize)
         finalSize++;
     }
 
-    *(bytes+finalSize) = bcc2;
+    //stuffing of bcc2
+    if (bcc2 == 0x7e || bcc2 == 0x7d){
+        *(bytes+finalSize) = 0x7d;
+        *(bytes+finalSize+1) = bcc2 ^ 0x20;
+
+        finalSize += 2;
+    }
+    else{
+        *(bytes+finalSize) = bcc2;
+        finalSize++;
+    }
+
     *(bytes+finalSize+1) = F;
 
-    finalSize += 2;
+    finalSize++;
 
     // set the alarm function handler
     struct sigaction act = {0};
