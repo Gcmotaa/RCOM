@@ -6,6 +6,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <stdlib.h>
+
+#define FRAME_SIZE 100
 
 void applicationReciever(){
     while (TRUE)
@@ -55,7 +58,7 @@ void applicationTransmitter(const char *filename){
     *(controlPacket + 6) = (st.st_size << 24) && 0xff;
     *(controlPacket + 7) = 1;
     *(controlPacket + 8) = strlen(filename);
-    *(controlPacket + 9) = filename;
+    *(controlPacket + 9) = *filename;
 
     if(llwrite(controlPacket, 9 + strlen(filename)) != 9 + strlen(filename)){
         printf("ERROR: Error sending start control packet.\n");
@@ -64,6 +67,14 @@ void applicationTransmitter(const char *filename){
 
     free(controlPacket);
 
+    unsigned char buffer[FRAME_SIZE];
+
+    while(fread(buffer, 1, FRAME_SIZE, file) > 0){
+        if(llwrite(buffer, FRAME_SIZE) != FRAME_SIZE){
+            printf("ERROR: Error writing a byte.\n");
+            return;
+        }
+    }
 
     //close the file
     if(fclose(file) == -1){
