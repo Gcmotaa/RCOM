@@ -37,7 +37,26 @@ void applicationTransmitter(const char *filename){
         printf("ERROR: Error getting file information.\n");
     }
 
-    
+    unsigned char *controlPacket = malloc(9 + strlen(filename));
+
+    *(controlPacket) = 1;
+    *(controlPacket + 1) = 0;
+    *(controlPacket + 2) = 4;
+    *(controlPacket + 3) = st.st_size && 0xff;
+    *(controlPacket + 4) = (st.st_size << 8) && 0xff;
+    *(controlPacket + 5) = (st.st_size << 16) && 0xff;
+    *(controlPacket + 6) = (st.st_size << 24) && 0xff;
+    *(controlPacket + 7) = 1;
+    *(controlPacket + 8) = strlen(filename);
+    *(controlPacket + 9) = filename;
+
+    if(llwrite(controlPacket, 9 + strlen(filename)) != 9 + strlen(filename)){
+        printf("ERROR: Error sending start control packet.\n");
+        return;
+    }
+
+    free(controlPacket);
+
 
     //close the file
     if(fclose(file) == -1){
