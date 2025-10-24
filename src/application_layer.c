@@ -5,7 +5,6 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <stdlib.h>
 
 #define FRAME_SIZE 100
@@ -41,21 +40,25 @@ void applicationTransmitter(const char *filename){
         return;
     }
 
-    struct stat st;
+    fseek(file, 0, SEEK_END);
+    long filesize = ftell(file);
 
-    if (stat(filename, &st) != 0){
-        printf("ERROR: Error getting file information.\n");
+    if(filesize == -1L){
+        printf("ERROR: ftell failed.\n");
+        return;
     }
+
+    rewind(file);
 
     unsigned char *controlPacket = malloc(9 + strlen(filename));
 
     *(controlPacket) = 1;
     *(controlPacket + 1) = 0;
     *(controlPacket + 2) = 4;
-    *(controlPacket + 3) = st.st_size && 0xff;
-    *(controlPacket + 4) = (st.st_size << 8) && 0xff;
-    *(controlPacket + 5) = (st.st_size << 16) && 0xff;
-    *(controlPacket + 6) = (st.st_size << 24) && 0xff;
+    *(controlPacket + 3) = filesize && 0xff;
+    *(controlPacket + 4) = (filesize << 8) && 0xff;
+    *(controlPacket + 5) = (filesize << 16) && 0xff;
+    *(controlPacket + 6) = (filesize << 24) && 0xff;
     *(controlPacket + 7) = 1;
     *(controlPacket + 8) = strlen(filename);
     *(controlPacket + 9) = *filename;
