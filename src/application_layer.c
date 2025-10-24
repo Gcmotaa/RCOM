@@ -55,28 +55,48 @@ void applicationTransmitter(const char *filename){
     *(controlPacket) = 1;
     *(controlPacket + 1) = 0;
     *(controlPacket + 2) = 4;
-    *(controlPacket + 3) = filesize && 0xff;
-    *(controlPacket + 4) = (filesize << 8) && 0xff;
-    *(controlPacket + 5) = (filesize << 16) && 0xff;
-    *(controlPacket + 6) = (filesize << 24) && 0xff;
+    *(controlPacket + 3) = filesize & 0xff;
+    *(controlPacket + 4) = (filesize << 8) & 0xff;
+    *(controlPacket + 5) = (filesize << 16) & 0xff;
+    *(controlPacket + 6) = (filesize << 24) & 0xff;
     *(controlPacket + 7) = 1;
     *(controlPacket + 8) = strlen(filename);
     *(controlPacket + 9) = *filename;
 
     if(llwrite(controlPacket, 9 + strlen(filename)) != 9 + strlen(filename)){
         printf("ERROR: Error sending start control packet.\n");
+
+        if(fclose(file) == -1){
+            printf("ERROR: Error closing the file.\n");
+        }
         return;
     }
 
     free(controlPacket);
 
-    unsigned char buffer[FRAME_SIZE];
+    unsigned char dataPacket[FRAME_SIZE + 3];
 
-    while(fread(buffer, 1, FRAME_SIZE, file) > 0){
-        if(llwrite(buffer, FRAME_SIZE) != FRAME_SIZE){
-            printf("ERROR: Error writing a byte.\n");
+    dataPacket[0] = 2;
+    dataPacket[1] = FRAME_SIZE & 0xff;
+    dataPacket[2] = (FRAME_SIZE << 8) & 0xff;
+
+    while(fread(&dataPacket[3], 1, FRAME_SIZE, file) > 0){
+        if(llwrite(dataPacket, FRAME_SIZE+3) != FRAME_SIZE+3){
+            printf("ERROR: Error writing a data packet.\n");
+
+            if(fclose(file) == -1){
+                printf("ERROR: Error closing the file.\n");
+            }
+
             return;
         }
+    }
+
+    unsigned char controlEnd[1];
+    controlEnd[0] = 3;
+
+    if(llwrite(controlEnd, 1) != 1){
+        printf("ERROR: Error sending the end control packet.\n");
     }
 
     //close the file
