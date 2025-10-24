@@ -19,7 +19,13 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
     //open the file
     FILE* readFile = fopen(filename, "r");
-    if(readFile == NULL) return;
+    if(readFile == NULL){
+        printf("ERROR: Could not open file.");
+        return;
+    }
 
-    if(llopen(ll) == -1) return; //open comunication
+    if(llopen(ll) == -1){
+        printf("ERROR: Could not open serial port.");
+        return;
+    } //open comunication
 }
