@@ -13,7 +13,7 @@
 #define FALSE 0
 #define TRUE 1
 
-// alarm globaçl variables
+// alarm global variables
 int alarmEnabled = FALSE;
 int alarmCount = 0;
 
@@ -113,7 +113,6 @@ void s_statemachine(recieving_S_sm *sm) {
     case END_S:
         break;
     default:
-        printf("state is NULL\n");
         break;
     }
 }
@@ -173,24 +172,35 @@ void alarmHandler(int signal)
 int receive_S(unsigned char A, unsigned char C, int max_tries, int timeout) {
     recieving_S_sm sm;
     sm.state = INITIAL_S;
-    S_States previous_state = INITIAL_S;
 
-    int current_tries = 0;
-    while (current_tries < max_tries) {
-        s_statemachine(&sm);
-        if(sm.state == RECEIVED_A && sm.A != A) {
-            sm.state = INITIAL_S;
+    // set the alarm function handler
+    struct sigaction act = {0};
+    act.sa_handler = &alarmHandler;
+    if (sigaction(SIGALRM, &act, NULL) == -1)
+    {
+        perror("sigaction");
+        return -1;
+    }
+
+    alarmCount = 0;
+
+    while (alarmCount < max_tries) {
+        while(alarmEnabled && sm.state != END_S) {
+            s_statemachine(&sm);
+            if(sm.state == RECEIVED_A && sm.A != A) {
+                sm.state = INITIAL_S;
+            }
+            else if(sm.state == RECEIVED_C && sm.C != C) {
+                sm.state = INITIAL_S;
+            }  
         }
-        else if(sm.state == RECEIVED_C && sm.C != C) {
-            sm.state = INITIAL_S;
-        }
-        else if(sm.state == END_S){
+
+        if(sm.state == END_S) {
             return 0;
         }
-        if(previous_state == sm.state) {
-            ++current_tries;
-            usleep(timeout);
-        }
+
+        alarm(parameters.timeout);
+        alarmEnabled = TRUE;
     }
     return -1;
 }
@@ -211,19 +221,15 @@ int llopen(LinkLayer connectionParameters)
     case LlTx:
         unsigned char set[5] = {F, A_T_COMMAND, C_SET, A_T_COMMAND ^ C_SET, F};
 
-        //should i sleep before this?
         writeBytesSerialPort(set, 5);
 
-        //wait a second before advancing
-        sleep(1);
-
         //receive UA
-        return receive_S(A_T_COMMAND, C_UA, 4, 250);
+        return receive_S(A_T_COMMAND, C_UA, connectionParameters.nRetransmissions, connectionParameters.timeout);
 
         break;
     case LlRx:
         
-        receive_S(A_R_COMMAND, C_UA, 10, 500);
+        receive_S(A_T_COMMAND, C_SET, connectionParameters.nRetransmissions, connectionParameters.timeout);
 
         unsigned char ua[5] = {F, A_T_COMMAND, C_UA, A_T_COMMAND ^ C_UA, F};
 
@@ -281,6 +287,8 @@ int llwrite(const unsigned char *buf, int bufSize)
         perror("sigaction");
         return -1;
     }
+
+    alarmCount = 0;
 
     while (alarmCount < parameters.nRetransmissions)
     {
@@ -417,10 +425,8 @@ int llclose()
         //send disc
         writeBytesSerialPort(discT, 5);
 
-        usleep(500);
-
         //receive disc
-        receive_S(A_R_COMMAND, C_DISC, 10, 500);
+        receive_S(A_R_COMMAND, C_DISC, parameters.nRetransmissions, parameters.timeout);
 
         unsigned char UA[5] = {F, A_R_COMMAND, C_UA, A_R_COMMAND ^ C_UA, F};
         //send UA
@@ -430,16 +436,15 @@ int llclose()
         break;
     case LlRx:
         //receive the disc
-        receive_S(A_T_COMMAND, C_DISC, 10, 500);
+        receive_S(A_T_COMMAND, C_DISC, parameters.nRetransmissions, parameters.timeout);
   
         unsigned char discR[5] = {F, A_R_COMMAND, C_DISC, A_R_COMMAND ^ C_DISC, F};
 
         //send disc
         writeBytesSerialPort(discR,5);
 
-        usleep(500);
         //receive UA
-        receive_S(A_R_COMMAND, C_UA, 4, 250);
+        receive_S(A_R_COMMAND, C_UA, parameters.nRetransmissions, parameters.timeout);
         closeSerialPort();
         break;
     default:
