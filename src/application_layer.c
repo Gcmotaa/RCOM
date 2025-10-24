@@ -10,7 +10,9 @@
 void applicationReciever(){
     while (TRUE)
     {
-        //int bytes = llread();
+        unsigned char packet[MAX_PAYLOAD_SIZE];
+        int bytes = llread(packet);
+        
     }
     
     //still have to read the filename
