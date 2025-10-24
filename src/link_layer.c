@@ -221,7 +221,7 @@ int llopen(LinkLayer connectionParameters)
     case LlTx:
         unsigned char set[5] = {F, A_T_COMMAND, C_SET, A_T_COMMAND ^ C_SET, F};
 
-        writeBytesSerialPort(set, 5);
+        if(writeBytesSerialPort(set, 5) != 5) return -1;
 
         //receive UA
         return receive_S(A_T_COMMAND, C_UA, connectionParameters.nRetransmissions, connectionParameters.timeout);
@@ -229,12 +229,12 @@ int llopen(LinkLayer connectionParameters)
         break;
     case LlRx:
         
-        receive_S(A_T_COMMAND, C_SET, connectionParameters.nRetransmissions, connectionParameters.timeout);
+        if(receive_S(A_T_COMMAND, C_SET, connectionParameters.nRetransmissions, connectionParameters.timeout) != 0) return -1;
 
         unsigned char ua[5] = {F, A_T_COMMAND, C_UA, A_T_COMMAND ^ C_UA, F};
 
         //send UA
-        writeBytesSerialPort(ua, 5);
+        if(writeBytesSerialPort(ua, 5) != 5) return -1;
         break;
     default:
         return -1;
@@ -423,28 +423,28 @@ int llclose()
         unsigned char discT[5] = {F, A_T_COMMAND, C_DISC, A_T_COMMAND ^ C_DISC, F};
         
         //send disc
-        writeBytesSerialPort(discT, 5);
+        if(writeBytesSerialPort(discT, 5) != 5) return -1;
 
         //receive disc
-        receive_S(A_R_COMMAND, C_DISC, parameters.nRetransmissions, parameters.timeout);
+        if(receive_S(A_R_COMMAND, C_DISC, parameters.nRetransmissions, parameters.timeout) != 0) return -1;
 
         unsigned char UA[5] = {F, A_R_COMMAND, C_UA, A_R_COMMAND ^ C_UA, F};
         //send UA
-        writeBytesSerialPort(UA,5);
+        if(writeBytesSerialPort(UA,5) != 5 ) return -1;
 
         closeSerialPort();
         break;
     case LlRx:
         //receive the disc
-        receive_S(A_T_COMMAND, C_DISC, parameters.nRetransmissions, parameters.timeout);
+        if(receive_S(A_T_COMMAND, C_DISC, parameters.nRetransmissions, parameters.timeout) != 0) return -1;
   
         unsigned char discR[5] = {F, A_R_COMMAND, C_DISC, A_R_COMMAND ^ C_DISC, F};
 
         //send disc
-        writeBytesSerialPort(discR,5);
+        if (writeBytesSerialPort(discR,5) != 5) return -1;
 
         //receive UA
-        receive_S(A_R_COMMAND, C_UA, parameters.nRetransmissions, parameters.timeout);
+        if(receive_S(A_R_COMMAND, C_UA, parameters.nRetransmissions, parameters.timeout) != 0) return -1;
         closeSerialPort();
         break;
     default:
