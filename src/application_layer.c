@@ -9,49 +9,99 @@
 
 #define FRAME_SIZE 100
 
+//@return 0 on success, -1 otherwise
+int applicationReciever(){
+    FILE *fp = NULL;
+    unsigned int file_size = 0;
+    unsigned int bytes_written = 0;
 
-void applicationReciever(){
     while (TRUE)
     {
         unsigned char packet[MAX_PAYLOAD_SIZE];
-        int bytes = llread(packet);
+        if (llread(packet) != 0){
+            fprintf(stderr, "llprint failed\n");
+            return -1;
+        }
 
         unsigned char *ptr = packet;
         switch (*ptr) // first byte is C
         {
         case 1: //START
+            char filename[256] = {0};
+
+            // We loop twice: once for the size of the file and once for the name
             for (int i = 0; i < 2; ++i) {
                 ++ptr;
-                unsigned T = *ptr;
+                unsigned char T = *ptr++;
+                unsigned char L = *ptr++;
+                unsigned char *value = malloc(L * sizeof(unsigned char));
+                memcpy(value, ptr, L);
+                ptr += L;
+                if (T == 0) { // file size
+                    file_size = 0;
+                    for (int j = 0; j < L; j++) {
+                        file_size |= ((unsigned int)value[j]) << (8 * j);
+                    }
+                }
+                else if (T == 1) { // filename
+                    memcpy(filename, value, L);
+                    filename[L] = '\0';
+                }
+                else{
+                    fprintf(stderr, "Error: Undefined T = %x\n", T);
+                    free(value);
+                    return -1;
+                }
+                free(value);
+            }
+
+            // Create the file
+            fp = fopen(filename, "wb");
+            if (!fp) {
+                perror("Could not create file\n");
+                return -1;
             }
             break;
         case 2: //DATA
-            /* code */
+            ++ptr;
+            if (fp == NULL) {
+                fprintf(stderr, "received DATA packet before START\n");
+                return -1;
+            }
+
+            unsigned char L1 = *ptr++;
+            unsigned char L2 = *ptr++;
+            unsigned int data_length = L1 + (L2 << 8);
+
+            if(data_length > MAX_PAYLOAD_SIZE) {
+                fprintf(stderr, "Received more data than supported. received %i\n", data_length);
+            }
+            // Write data to file
+            size_t written = fwrite(ptr, 1, data_length, fp);
+            if (written != data_length) {
+                fprintf(stderr, "Failed to write full data block to file");
+                return -1;
+            }
+
+            bytes_written += written;
             break;
 
         case 3: //END
-            llclose();
+            if(fp != NULL) fclose(fp);
+            if (bytes_written != file_size)
+                fprintf(stderr, "File incomplete, expected %u bytes, got %u\n", file_size, bytes_written);
+            if(llclose() != 0){
+                fprintf(stderr, "couldn't close properly\n");
+                return -1;
+            }
+            return 0;
             break;
         
         default:
-            perror("we done goofed up");
+            fprintf(stderr, "Undefined C, %i\n", *ptr);
             break;
         }
     }
-    
-    //still have to read the filename
-    /*
-    //open the file in read mode
-    FILE* file = fopen(filename, "w");
-    if(file == NULL){
-        printf("ERROR: Could not open file.\n");
-        return;
-    }
-
-    //close the file
-    if(fclose(file) == -1){
-        printf("ERROR: Error closing the file.\n");
-    }*/
 }
 
 void applicationTransmitter(const char *filename){
