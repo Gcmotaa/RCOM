@@ -5,8 +5,9 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <stdlib.h>
+
+#define FRAME_SIZE 100
 
 
 void applicationReciever(){
@@ -61,32 +62,64 @@ void applicationTransmitter(const char *filename){
         return;
     }
 
-    struct stat st;
+    fseek(file, 0, SEEK_END);
+    long filesize = ftell(file);
 
-    if (stat(filename, &st) != 0){
-        printf("ERROR: Error getting file information.\n");
+    if(filesize == -1L){
+        printf("ERROR: ftell failed.\n");
+        return;
     }
+
+    rewind(file);
 
     unsigned char *controlPacket = malloc(9 + strlen(filename));
 
     *(controlPacket) = 1;
     *(controlPacket + 1) = 0;
     *(controlPacket + 2) = 4;
-    *(controlPacket + 3) = st.st_size && 0xff;
-    *(controlPacket + 4) = (st.st_size << 8) && 0xff;
-    *(controlPacket + 5) = (st.st_size << 16) && 0xff;
-    *(controlPacket + 6) = (st.st_size << 24) && 0xff;
+    *(controlPacket + 3) = filesize & 0xff;
+    *(controlPacket + 4) = (filesize << 8) & 0xff;
+    *(controlPacket + 5) = (filesize << 16) & 0xff;
+    *(controlPacket + 6) = (filesize << 24) & 0xff;
     *(controlPacket + 7) = 1;
     *(controlPacket + 8) = strlen(filename);
-    *(controlPacket + 9) = filename;
+    *(controlPacket + 9) = *filename;
 
     if(llwrite(controlPacket, 9 + strlen(filename)) != 9 + strlen(filename)){
         printf("ERROR: Error sending start control packet.\n");
+
+        if(fclose(file) == -1){
+            printf("ERROR: Error closing the file.\n");
+        }
         return;
     }
 
     free(controlPacket);
 
+    unsigned char dataPacket[FRAME_SIZE + 3];
+
+    dataPacket[0] = 2;
+    dataPacket[1] = FRAME_SIZE & 0xff;
+    dataPacket[2] = (FRAME_SIZE << 8) & 0xff;
+
+    while(fread(&dataPacket[3], 1, FRAME_SIZE, file) > 0){
+        if(llwrite(dataPacket, FRAME_SIZE+3) != FRAME_SIZE+3){
+            printf("ERROR: Error writing a data packet.\n");
+
+            if(fclose(file) == -1){
+                printf("ERROR: Error closing the file.\n");
+            }
+
+            return;
+        }
+    }
+
+    unsigned char controlEnd[1];
+    controlEnd[0] = 3;
+
+    if(llwrite(controlEnd, 1) != 1){
+        printf("ERROR: Error sending the end control packet.\n");
+    }
 
     //close the file
     if(fclose(file) == -1){
