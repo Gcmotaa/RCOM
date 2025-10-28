@@ -89,8 +89,8 @@ void s_statemachine(recieving_S_sm *sm) {
     case RECEIVED_A:
         if(bytes == 1) {
             if(byte == C_SET || byte == C_UA ||
-                byte == C_RR || byte == (C_RR || 0x01) ||
-                byte == C_REJ || byte == (C_REJ || 0x01) ||
+                byte == C_RR || byte == (C_RR | 0x01) ||
+                byte == C_REJ || byte == (C_REJ | 0x01) ||
                 byte == C_DISC){
                 sm->state = RECEIVED_C;
                 sm->C = byte;
@@ -167,44 +167,63 @@ void alarmHandler(int signal)
 ////////////////////////////////////////////////
 
 //@return 0 on success, -1 otherwise
+//@param A: Expected A byte
+//@param C: Expected C byte
 //@param max_tries: number of attempts before giving up
 //@param timeout: time(microseconds) between attempts
-int receive_S(unsigned char A, unsigned char C, int max_tries, int timeout) {
+int receive_S(unsigned char A, unsigned char C, int timeout) {
     recieving_S_sm sm;
     sm.state = INITIAL_S;
 
+    alarmEnabled = TRUE;
+    alarm(timeout);
+
+    while(alarmEnabled && sm.state != END_S) {
+        s_statemachine(&sm);
+        if(sm.state == RECEIVED_A && sm.A != A) {
+            sm.state = INITIAL_S;
+        }
+        else if(sm.state == RECEIVED_C && sm.C != C) {
+            sm.state = INITIAL_S;
+        }  
+    }
+
+    if(sm.state == END_S) {
+        alarmEnabled = FALSE;
+        return 0;
+    }
+    return -1;
+}
+
+//@return 0 on success, -1 otherwise
+//@param frame: frame to send
+//@param frame_len: length of frame to send
+//@param A: Expected A byte
+//@param C: Expected C byte
+//@param max_tries: number of attempts before giving up
+//@param timeout: time(microseconds) between attempts
+int send_frame_wait_response(unsigned char *frame, int frame_len, unsigned char A, unsigned char C, int max_tries, int timeout) {
     // set the alarm function handler
     struct sigaction act = {0};
     act.sa_handler = &alarmHandler;
-    if (sigaction(SIGALRM, &act, NULL) == -1)
+    if (sigaction(SIGALRM, &act, NULL) == -1) 
     {
         perror("sigaction");
         return -1;
     }
 
-    alarmCount = 0;
+    for (int tries = 0; tries < max_tries; tries++) {
 
-    while (alarmCount < max_tries) {
-        while(alarmEnabled && sm.state != END_S) {
-            s_statemachine(&sm);
-            if(sm.state == RECEIVED_A && sm.A != A) {
-                sm.state = INITIAL_S;
-            }
-            else if(sm.state == RECEIVED_C && sm.C != C) {
-                sm.state = INITIAL_S;
-            }  
-        }
+        if (writeBytesSerialPort(frame, frame_len) != frame_len)
+            return -1;
 
-        if(sm.state == END_S) {
-            return 0;
-        }
+        if(receive_S(A, C, timeout) == 0) return 0;
 
-        alarm(parameters.timeout);
-        alarmEnabled = TRUE;
     }
+
+    printf("Failed after %i attempts\n", max_tries);
     return -1;
 }
-
 ////////////////////////////////////////////////
 // LLOPEN
 ////////////////////////////////////////////////
@@ -221,15 +240,12 @@ int llopen(LinkLayer connectionParameters)
     case LlTx:
         unsigned char set[5] = {F, A_T_COMMAND, C_SET, A_T_COMMAND ^ C_SET, F};
 
-        if(writeBytesSerialPort(set, 5) != 5) return -1;
-
-        //receive UA
-        return receive_S(A_T_COMMAND, C_UA, connectionParameters.nRetransmissions, connectionParameters.timeout);
+        return send_frame_wait_response(set, 5, A_T_COMMAND, C_UA, connectionParameters.nRetransmissions, connectionParameters.timeout);
 
         break;
     case LlRx:
         
-        if(receive_S(A_T_COMMAND, C_SET, connectionParameters.nRetransmissions, connectionParameters.timeout) != 0) return -1;
+        if(receive_S(A_T_COMMAND, C_SET, connectionParameters.timeout) != 0) return -1;
 
         unsigned char ua[5] = {F, A_T_COMMAND, C_UA, A_T_COMMAND ^ C_UA, F};
 
@@ -438,11 +454,8 @@ int llclose()
     case LlTx:
         unsigned char discT[5] = {F, A_T_COMMAND, C_DISC, A_T_COMMAND ^ C_DISC, F};
         
-        //send disc
-        if(writeBytesSerialPort(discT, 5) != 5) return -1;
-
-        //receive disc
-        if(receive_S(A_R_COMMAND, C_DISC, parameters.nRetransmissions, parameters.timeout) != 0) return -1;
+        //send and receive DISC
+        if(send_frame_wait_response(discT, 5, A_R_COMMAND, C_DISC, parameters.nRetransmissions, parameters.timeout) != 0) return -1;
 
         unsigned char UA[5] = {F, A_R_COMMAND, C_UA, A_R_COMMAND ^ C_UA, F};
         //send UA
@@ -452,15 +465,12 @@ int llclose()
         break;
     case LlRx:
         //receive the disc
-        if(receive_S(A_T_COMMAND, C_DISC, parameters.nRetransmissions, parameters.timeout) != 0) return -1;
+        if(receive_S(A_T_COMMAND, C_DISC, parameters.timeout) != 0) return -1;
   
         unsigned char discR[5] = {F, A_R_COMMAND, C_DISC, A_R_COMMAND ^ C_DISC, F};
 
-        //send disc
-        if (writeBytesSerialPort(discR,5) != 5) return -1;
-
-        //receive UA
-        if(receive_S(A_R_COMMAND, C_UA, parameters.nRetransmissions, parameters.timeout) != 0) return -1;
+        //send DISC receive UA
+        if(send_frame_wait_response(discR, 5, A_R_COMMAND, C_UA, parameters.nRetransmissions, parameters.timeout) != 0) return -1;
         closeSerialPort();
         break;
     default:
