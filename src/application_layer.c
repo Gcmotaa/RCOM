@@ -6,13 +6,36 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <stdlib.h>
+
 
 void applicationReciever(){
     while (TRUE)
     {
         unsigned char packet[MAX_PAYLOAD_SIZE];
         int bytes = llread(packet);
+
+        unsigned char *ptr = packet;
+        switch (*ptr) // first byte is C
+        {
+        case 1: //START
+            for (int i = 0; i < 2; ++i) {
+                ++ptr;
+                unsigned T = *ptr;
+            }
+            break;
+        case 2: //DATA
+            /* code */
+            break;
+
+        case 3: //END
+            llclose();
+            break;
         
+        default:
+            perror("we done goofed up");
+            break;
+        }
     }
     
     //still have to read the filename
