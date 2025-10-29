@@ -20,7 +20,7 @@ int applicationReciever(){
         unsigned char packet[MAX_PAYLOAD_SIZE];
         if (llread(packet) != 0){
             fprintf(stderr, "ERROR:llread failed\n");
-            return -1;
+            continue;
         }
 
         unsigned char *ptr = packet;
@@ -89,16 +89,16 @@ int applicationReciever(){
         case 3: //END
             if(fp != NULL) fclose(fp);
             if (bytes_written != file_size)
-                fprintf(stderr, "File incomplete, expected %u bytes, got %u\n", file_size, bytes_written);
+                fprintf(stderr, "ERROR:File incomplete, expected %u bytes, got %u\n", file_size, bytes_written);
             if(llclose() != 0){
-                fprintf(stderr, "couldn't close properly\n");
+                fprintf(stderr, "ERROR:couldn't close properly\n");
                 return -1;
             }
             return 0;
             break;
         
         default:
-            fprintf(stderr, "Undefined C, %i\n", *ptr);
+            fprintf(stderr, "ERROR:Undefined C = %i\n", *ptr);
             break;
         }
     }

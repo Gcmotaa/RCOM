@@ -162,6 +162,16 @@ void alarmHandler(int signal)
     alarmCount++;
 }
 
+int setup_alarm_handler(void) {
+    struct sigaction act = {0};
+    act.sa_handler = &alarmHandler;
+    if (sigaction(SIGALRM, &act, NULL) == -1) 
+    {
+        perror("sigaction");
+        return -1;
+    }
+    return 0;
+}
 ////////////////////////////////////////////////
 // UTILS
 ////////////////////////////////////////////////
@@ -228,14 +238,9 @@ int llopen(LinkLayer connectionParameters)
         return -1;
     }
 
-    // set the alarm function handler
-    struct sigaction act = {0};
-    act.sa_handler = &alarmHandler;
-    if (sigaction(SIGALRM, &act, NULL) == -1) 
-    {
-        perror("sigaction");
+    if(setup_alarm_handler() != 0){
         return -1;
-    }
+    } 
 
     switch (connectionParameters.role)
     {
@@ -450,6 +455,9 @@ int llread(unsigned char *packet)
 ////////////////////////////////////////////////
 int llclose()
 {
+    if(setup_alarm_handler() != 0){
+        return -1;
+    } 
     switch (parameters.role)
     {
     case LlTx:
@@ -469,7 +477,7 @@ int llclose()
         if(receive_S(A_T_COMMAND, C_DISC, parameters.timeout) != 0) return -1;
   
         unsigned char discR[5] = {F, A_R_COMMAND, C_DISC, A_R_COMMAND ^ C_DISC, F};
-
+        printf("gello\n");
         //send DISC receive UA
         if(send_frame_wait_response(discR, 5, A_R_COMMAND, C_UA, parameters.nRetransmissions, parameters.timeout) != 0) return -1;
         closeSerialPort();
