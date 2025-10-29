@@ -328,6 +328,7 @@ int llwrite(const unsigned char *buf, int bufSize)
     {
         if(writeBytesSerialPort(bytes, finalSize) != finalSize) {
             free(bytes);
+            fprintf(stderr, "LLWRITE ERROR: write bytes call failed\n");
             return -1;
         }
 
@@ -343,6 +344,7 @@ int llwrite(const unsigned char *buf, int bufSize)
             free(bytes);
             return bufSize;
         }
+        else printf("resending frame, C = %x, A = %x\n", bytes[2], bytes[1]);
 
         //reset the alarm, for if the recieved was C_REJ or C_RR of current Ns, so that the alarm resets
         alarm(parameters.timeout);
@@ -362,7 +364,7 @@ int llread(unsigned char *packet)
     if(packet == NULL) return -1;
     
     recieving_I_state state = INITIAL_I;
-    unsigned char header[2];
+    unsigned char header[2]; // header[0] = A, header[1] = C
     int destuffing = FALSE;
     int index = 0;
     unsigned char expected_bcc2 = 0x0;
@@ -391,6 +393,7 @@ int llread(unsigned char *packet)
 
             if(state == BCC1_RECEIVED && byte == (*header ^ *(header+1))){ //check if bcc1 is correct
                 state = RECEIVING_DATA;
+                continue;
             }
             else if (state == BCC1_RECEIVED){ //if bcc1 is incorrect
                 state = INITIAL_I;
@@ -417,6 +420,7 @@ int llread(unsigned char *packet)
                 //we do the xor with the prior one so the bcc2 is not included
                 if(index > 0)
                     expected_bcc2 = expected_bcc2 ^ *(packet+index-1);
+                if(index == 0)
 
                 index++;
             }
@@ -447,12 +451,14 @@ int llread(unsigned char *packet)
        
     }
 
-    if(*(header+1) == Ns << 7){ //check if the ns we received are the one we are expecting
+    if(*(header+1) == (Ns << 7)){ //check if the ns we received are the one we are expecting
         *(reply+2) = C_REJ | Ns;
         *(reply+3) = *(reply+1) ^ *(reply+2);
         *(reply+4) = F;
 
         writeBytesSerialPort(reply, 5); //send REJ(Ns)
+        fprintf(stderr, "LLREAD ERROR: wrong NS\n");
+        printf("C = %x, ns = %x\n", header[1], Ns);
         return -1;
     }
     else{ //it is not the one we are expecting

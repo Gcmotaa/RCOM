@@ -146,7 +146,7 @@ void applicationTransmitter(const char *filename){
         }
         return;
     }
-
+    printf("START control packet sent\n");
     free(controlPacket);
 
     unsigned char dataPacket[FRAME_SIZE + 3];
@@ -196,6 +196,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         return;
     } //open comunication
 
+    printf("Ports opened with success!\n");
     if(ll.role == LlRx){
         applicationReciever();
     }
