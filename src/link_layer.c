@@ -344,7 +344,7 @@ int llwrite(const unsigned char *buf, int bufSize)
             free(bytes);
             return bufSize;
         }
-        else printf("resending frame, C = %x, A = %x\n", bytes[2], bytes[1]);
+        else printf("resending frame\n");
 
         //reset the alarm, for if the recieved was C_REJ or C_RR of current Ns, so that the alarm resets
         alarm(parameters.timeout);

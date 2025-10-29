@@ -23,21 +23,26 @@ int applicationReciever(){
             fprintf(stderr, "ERROR:llread failed\n");
             continue;
         } else if(bytes == 0){
-            printf("0 bytes read\n");
+            printf("INFO:llread returned 0\n");
         }
 
         unsigned char *ptr = packet;
-        printf("%x %x %x\n", *ptr, *(ptr+1), *(ptr+2));
         switch (*ptr) // first byte is C
         {
         case 1: //START
             char filename[256] = {0};
             ++ptr;
+
+            for (int i = 0; i < MAX_PAYLOAD_SIZE; i++){
+            printf("%x  ", packet[i]);
+            }
+            printf("\n");
+
             // We loop twice: once for the size of the file and once for the name
             for (int i = 0; i < 2; ++i) { 
                 unsigned char T = *(ptr++);
                 unsigned char L = *(ptr++);
-                unsigned char *value = malloc(L * sizeof(unsigned char));
+                unsigned char *value = malloc(L * sizeof(unsigned char) + 1);
                 memcpy(value, ptr, L);
                 ptr += L;
                 if (T == 0) { // file size
@@ -49,6 +54,9 @@ int applicationReciever(){
                 else if (T == 1) { // filename
                     memcpy(filename, value, L);
                     filename[L] = '\0';
+                    printf("filename = %s\n",filename);
+                    printf("value= %c\n",*(value+1));
+                    printf("L= %i\n",L);
                 }
                 else{
                     fprintf(stderr, "ERROR:Undefined T = %x\n", T);
@@ -123,6 +131,7 @@ void applicationTransmitter(const char *filename){
 
     unsigned char *controlPacket = malloc(9 + strlen(filename));
 
+    printf("size = %ld\n", filesize);
     *(controlPacket) = 1;
     *(controlPacket + 1) = 0;
     *(controlPacket + 2) = 4;
@@ -132,8 +141,12 @@ void applicationTransmitter(const char *filename){
     *(controlPacket + 6) = (filesize << 24) & 0xff;
     *(controlPacket + 7) = 1;
     *(controlPacket + 8) = strlen(filename);
-    *(controlPacket + 9) = *filename;
+    memcpy(controlPacket+9, filename, strlen(filename));
 
+    for (int i = 0; i < 20; i++){
+            printf("%x  ", controlPacket[i]);
+            }
+            printf("\n");
     if(llwrite(controlPacket, 9 + strlen(filename)) != 9 + strlen(filename)){
         printf("ERROR: Error sending start control packet.\n");
 
