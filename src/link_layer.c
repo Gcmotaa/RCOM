@@ -420,7 +420,6 @@ int llread(unsigned char *packet)
                 //we do the xor with the prior one so the bcc2 is not included
                 if(index > 0)
                     expected_bcc2 = expected_bcc2 ^ *(packet+index-1);
-                if(index == 0)
 
                 index++;
             }
@@ -432,6 +431,7 @@ int llread(unsigned char *packet)
         return -1; //got out of the cycle because of timeout
     }
 
+    printf("expected = %x, received = %x \n", packet[index-1], expected_bcc2);
     //we have read all the bytes, we need to confirm bcc2
     if(*(packet+index-1) == expected_bcc2){
 

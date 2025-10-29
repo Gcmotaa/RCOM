@@ -52,6 +52,7 @@ int applicationReciever(){
                 }
                 else{
                     fprintf(stderr, "ERROR:Undefined T = %x\n", T);
+                    printf("%x %x %x\n", packet[0], packet[1], packet[2]);
                     free(value);
                     return -1;
                 }
