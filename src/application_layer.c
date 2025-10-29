@@ -14,16 +14,25 @@ int applicationReciever(){
     FILE *fp = NULL;
     unsigned int file_size = 0;
     unsigned int bytes_written = 0;
+    //int counter = 0;
 
     while (TRUE)
     {
         unsigned char packet[MAX_PAYLOAD_SIZE];
         int bytes = llread(packet);
+        /*printf("counter : %d\n", counter);
+        counter++;
+        for (int i = 0; i < MAX_PAYLOAD_SIZE; i++){
+            printf("%x ", packet[i]);
+            }
+            printf("\n");
+*/
         if (bytes == -1){
             fprintf(stderr, "ERROR:llread failed\n");
             continue;
         } else if(bytes == 0){
             printf("INFO:llread returned 0\n");
+            continue;
         }
 
         unsigned char *ptr = packet;
@@ -32,11 +41,6 @@ int applicationReciever(){
         case 1: //START
             char filename[256] = {0};
             ++ptr;
-
-            for (int i = 0; i < MAX_PAYLOAD_SIZE; i++){
-            printf("%x  ", packet[i]);
-            }
-            printf("\n");
 
             // We loop twice: once for the size of the file and once for the name
             for (int i = 0; i < 2; ++i) { 
@@ -100,7 +104,7 @@ int applicationReciever(){
         case 3: //END
             if(fp != NULL) fclose(fp);
             if (bytes_written != file_size)
-                fprintf(stderr, "ERROR:File incomplete, expected %u bytes, got %u\n", file_size, bytes_written);
+                fprintf(stderr, "ERROR:expected %u bytes, got %u\n", file_size, bytes_written);
             return 0;
             break;
         
@@ -131,14 +135,13 @@ void applicationTransmitter(const char *filename){
 
     unsigned char *controlPacket = malloc(9 + strlen(filename));
 
-    printf("size = %ld\n", filesize);
     *(controlPacket) = 1;
     *(controlPacket + 1) = 0;
     *(controlPacket + 2) = 4;
     *(controlPacket + 3) = filesize & 0xff;
-    *(controlPacket + 4) = (filesize << 8) & 0xff;
-    *(controlPacket + 5) = (filesize << 16) & 0xff;
-    *(controlPacket + 6) = (filesize << 24) & 0xff;
+    *(controlPacket + 4) = (filesize >> 8) & 0xff;
+    *(controlPacket + 5) = (filesize >> 16) & 0xff;
+    *(controlPacket + 6) = (filesize >> 24) & 0xff;
     *(controlPacket + 7) = 1;
     *(controlPacket + 8) = strlen(filename);
     memcpy(controlPacket+9, filename, strlen(filename));

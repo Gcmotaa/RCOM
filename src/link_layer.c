@@ -361,7 +361,10 @@ int llwrite(const unsigned char *buf, int bufSize)
 ////////////////////////////////////////////////
 int llread(unsigned char *packet)
 {
-    if(packet == NULL) return -1;
+    if(packet == NULL) {
+        fprintf(stderr, "LLREAD ERRO: packet is null");
+        return -1;
+    } 
     
     recieving_I_state state = INITIAL_I;
     unsigned char header[2]; // header[0] = A, header[1] = C
