@@ -56,8 +56,8 @@ int applicationReciever(const char *filename){
                     }
                 }
                 else if (T == 1) { // filename
-                    memcpy(filename, value, L);
-                    filename[L] = '\0';
+                    memcpy(fileog, value, L);
+                    fileog[L] = '\0';
                 }
                 else{
                     fprintf(stderr, "ERROR:Undefined T = %x\n", T);
