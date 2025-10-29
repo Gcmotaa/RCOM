@@ -431,7 +431,6 @@ int llread(unsigned char *packet)
         return -1; //got out of the cycle because of timeout
     }
 
-    printf("expected = %x, received = %x \n", packet[index-1], expected_bcc2);
     //we have read all the bytes, we need to confirm bcc2
     if(*(packet+index-1) == expected_bcc2){
 

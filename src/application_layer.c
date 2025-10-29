@@ -27,16 +27,16 @@ int applicationReciever(){
         }
 
         unsigned char *ptr = packet;
+        printf("%x %x %x\n", *ptr, *(ptr+1), *(ptr+2));
         switch (*ptr) // first byte is C
         {
         case 1: //START
             char filename[256] = {0};
-
+            ++ptr;
             // We loop twice: once for the size of the file and once for the name
-            for (int i = 0; i < 2; ++i) {
-                ++ptr;
-                unsigned char T = *ptr++;
-                unsigned char L = *ptr++;
+            for (int i = 0; i < 2; ++i) { 
+                unsigned char T = *(ptr++);
+                unsigned char L = *(ptr++);
                 unsigned char *value = malloc(L * sizeof(unsigned char));
                 memcpy(value, ptr, L);
                 ptr += L;
@@ -52,9 +52,8 @@ int applicationReciever(){
                 }
                 else{
                     fprintf(stderr, "ERROR:Undefined T = %x\n", T);
-                    printf("%x %x %x\n", packet[0], packet[1], packet[2]);
                     free(value);
-                    return -1;
+                    continue;
                 }
                 free(value);
             }
@@ -94,10 +93,6 @@ int applicationReciever(){
             if(fp != NULL) fclose(fp);
             if (bytes_written != file_size)
                 fprintf(stderr, "ERROR:File incomplete, expected %u bytes, got %u\n", file_size, bytes_written);
-            if(llclose() != 0){
-                fprintf(stderr, "ERROR:couldn't close properly\n");
-                return -1;
-            }
             return 0;
             break;
         
