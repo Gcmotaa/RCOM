@@ -359,6 +359,8 @@ int llwrite(const unsigned char *buf, int bufSize)
 ////////////////////////////////////////////////
 int llread(unsigned char *packet)
 {
+    if(packet == NULL) return -1;
+    
     recieving_I_state state = INITIAL_I;
     unsigned char header[2];
     int destuffing = FALSE;
@@ -402,32 +404,41 @@ int llread(unsigned char *packet)
                 }
                 
                 if(destuffing == TRUE){
-                    byte = byte | 0x20;
+                    byte = byte ^ 0x20;
                     destuffing = FALSE;
                 }
 
+                if(index > MAX_PAYLOAD_SIZE) {
+                    fprintf(stderr, "LLREAD ERROR: index exceeded max payload size\n");
+                    return -1;
+                }
                 *(packet + index) = byte; //put the byte in the packet
 
                 //we do the xor with the prior one so the bcc2 is not included
-                expected_bcc2 = expected_bcc2 ^ *(packet+index-1);
+                if(index > 0)
+                    expected_bcc2 = expected_bcc2 ^ *(packet+index-1);
 
                 index++;
             }
         }
     }
 
-    if(state != END_I) return -1; //got out of the cycle because of timeout
+    if(state != END_I) {
+        fprintf(stderr, "LLREAD ERROR: timeout\n");
+        return -1; //got out of the cycle because of timeout
+    }
 
     //we have read all the bytes, we need to confirm bcc2
     if(*(packet+index-1) == expected_bcc2){
 
-        if(*(header+1) == Ns << 7){ //check if the ns we received are the one we are expecting
+        if(*(header+1) == (Ns << 7)){ //check if the ns we received are the one we are expecting
             Ns = (Ns == 1 ? 0 : 1); //change ns
 
             *(reply+2) = C_RR | Ns;
             *(reply+3) = *(reply+1) ^ *(reply+2);
+            *(reply+4) = F;
 
-            writeBytesSerialPort(reply, 4); //reply "send me new frame"
+            writeBytesSerialPort(reply, 5); //reply "send me new frame"
             return index - 1; //minus 1 to not count the bcc2
         }
         else{ //it is not the one we are expecting
@@ -439,16 +450,17 @@ int llread(unsigned char *packet)
     if(*(header+1) == Ns << 7){ //check if the ns we received are the one we are expecting
         *(reply+2) = C_REJ | Ns;
         *(reply+3) = *(reply+1) ^ *(reply+2);
+        *(reply+4) = F;
 
-        writeBytesSerialPort(reply, 4); //send REJ(Ns)
-        printf("SUP\n");
+        writeBytesSerialPort(reply, 5); //send REJ(Ns)
         return -1;
     }
     else{ //it is not the one we are expecting
         *(reply+2) = C_RR | Ns;
         *(reply+3) = *(reply+1) ^ *(reply+2);
+        *(reply+4) = F;
 
-        writeBytesSerialPort(reply, 4); //reply "send me new frame"
+        writeBytesSerialPort(reply, 5); //reply "send me new frame"
         return 0;
     }
 }
