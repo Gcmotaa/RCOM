@@ -67,7 +67,7 @@ int applicationReciever(){
             }
 
             // Create the file
-            fp = fopen(filename, "wb");
+            fp = fopen("testing", "wb");
             if (!fp) {
                 perror("ERROR:Could not create file\n");
                 return -1;
