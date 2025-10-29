@@ -58,9 +58,6 @@ int applicationReciever(){
                 else if (T == 1) { // filename
                     memcpy(filename, value, L);
                     filename[L] = '\0';
-                    printf("filename = %s\n",filename);
-                    printf("value= %c\n",*(value+1));
-                    printf("L= %i\n",L);
                 }
                 else{
                     fprintf(stderr, "ERROR:Undefined T = %x\n", T);
@@ -71,7 +68,7 @@ int applicationReciever(){
             }
 
             // Create the file
-            fp = fopen("testing", "wb");
+            fp = fopen("testing.gif", "wb");
             if (!fp) {
                 perror("ERROR:Could not create file\n");
                 return -1;
