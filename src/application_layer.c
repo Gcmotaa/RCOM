@@ -19,7 +19,7 @@ int applicationReciever(){
     {
         unsigned char packet[MAX_PAYLOAD_SIZE];
         if (llread(packet) != 0){
-            fprintf(stderr, "llprint failed\n");
+            fprintf(stderr, "ERROR:llread failed\n");
             return -1;
         }
 
@@ -48,7 +48,7 @@ int applicationReciever(){
                     filename[L] = '\0';
                 }
                 else{
-                    fprintf(stderr, "Error: Undefined T = %x\n", T);
+                    fprintf(stderr, "ERROR:Undefined T = %x\n", T);
                     free(value);
                     return -1;
                 }
@@ -58,14 +58,14 @@ int applicationReciever(){
             // Create the file
             fp = fopen(filename, "wb");
             if (!fp) {
-                perror("Could not create file\n");
+                perror("ERROR:Could not create file\n");
                 return -1;
             }
             break;
         case 2: //DATA
             ++ptr;
             if (fp == NULL) {
-                fprintf(stderr, "received DATA packet before START\n");
+                fprintf(stderr, "ERROR:received DATA packet before START\n");
                 return -1;
             }
 
@@ -74,12 +74,12 @@ int applicationReciever(){
             unsigned int data_length = L1 + (L2 << 8);
 
             if(data_length > MAX_PAYLOAD_SIZE) {
-                fprintf(stderr, "Received more data than supported. received %i\n", data_length);
+                fprintf(stderr, "ERROR:Received more data than supported. received %i\n", data_length);
             }
             // Write data to file
             size_t written = fwrite(ptr, 1, data_length, fp);
             if (written != data_length) {
-                fprintf(stderr, "Failed to write full data block to file");
+                fprintf(stderr, "ERROR:Failed to write full data block to file");
                 return -1;
             }
 

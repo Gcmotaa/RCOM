@@ -166,6 +166,7 @@ void alarmHandler(int signal)
 // UTILS
 ////////////////////////////////////////////////
 
+//sets and alarm for timeout seconds. alarm handler must be defined before calling this function
 //@return 0 on success, -1 otherwise
 //@param A: Expected A byte
 //@param C: Expected C byte
@@ -203,14 +204,6 @@ int receive_S(unsigned char A, unsigned char C, int timeout) {
 //@param max_tries: number of attempts before giving up
 //@param timeout: time(microseconds) between attempts
 int send_frame_wait_response(unsigned char *frame, int frame_len, unsigned char A, unsigned char C, int max_tries, int timeout) {
-    // set the alarm function handler
-    struct sigaction act = {0};
-    act.sa_handler = &alarmHandler;
-    if (sigaction(SIGALRM, &act, NULL) == -1) 
-    {
-        perror("sigaction");
-        return -1;
-    }
 
     for (int tries = 0; tries < max_tries; tries++) {
 
@@ -235,6 +228,15 @@ int llopen(LinkLayer connectionParameters)
         return -1;
     }
 
+    // set the alarm function handler
+    struct sigaction act = {0};
+    act.sa_handler = &alarmHandler;
+    if (sigaction(SIGALRM, &act, NULL) == -1) 
+    {
+        perror("sigaction");
+        return -1;
+    }
+
     switch (connectionParameters.role)
     {
     case LlTx:
@@ -244,7 +246,6 @@ int llopen(LinkLayer connectionParameters)
 
         break;
     case LlRx:
-        
         if(receive_S(A_T_COMMAND, C_SET, connectionParameters.timeout) != 0) return -1;
 
         unsigned char ua[5] = {F, A_T_COMMAND, C_UA, A_T_COMMAND ^ C_UA, F};
