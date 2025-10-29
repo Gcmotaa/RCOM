@@ -10,7 +10,7 @@
 #define FRAME_SIZE 100
 
 //@return 0 on success, -1 otherwise
-int applicationReciever(){
+int applicationReciever(const char *filename){
     FILE *fp = NULL;
     unsigned int file_size = 0;
     unsigned int bytes_written = 0;
@@ -39,7 +39,7 @@ int applicationReciever(){
         switch (*ptr) // first byte is C
         {
         case 1: //START
-            char filename[256] = {0};
+            char fileog[256] = {0};
             ++ptr;
 
             // We loop twice: once for the size of the file and once for the name
@@ -68,7 +68,7 @@ int applicationReciever(){
             }
 
             // Create the file
-            fp = fopen("testing.gif", "wb");
+            fp = fopen(filename, "wb");
             if (!fp) {
                 perror("ERROR:Could not create file\n");
                 return -1;
@@ -206,7 +206,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
     printf("Ports opened with success!\n");
     if(ll.role == LlRx){
-        applicationReciever();
+        applicationReciever(filename);
     }
     else{
         applicationTransmitter(filename);
