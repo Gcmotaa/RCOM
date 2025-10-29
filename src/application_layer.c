@@ -89,6 +89,7 @@ int applicationReciever(){
                 fprintf(stderr, "ERROR:Received more data than supported. received %i\n", data_length);
             }
             // Write data to file
+            printf("length %d\n", data_length);
             size_t written = fwrite(ptr, 1, data_length, fp);
             if (written != data_length) {
                 fprintf(stderr, "ERROR:Failed to write full data block to file");
@@ -143,10 +144,6 @@ void applicationTransmitter(const char *filename){
     *(controlPacket + 8) = strlen(filename);
     memcpy(controlPacket+9, filename, strlen(filename));
 
-    for (int i = 0; i < 20; i++){
-            printf("%x  ", controlPacket[i]);
-            }
-            printf("\n");
     if(llwrite(controlPacket, 9 + strlen(filename)) != 9 + strlen(filename)){
         printf("ERROR: Error sending start control packet.\n");
 
@@ -160,11 +157,13 @@ void applicationTransmitter(const char *filename){
 
     unsigned char dataPacket[FRAME_SIZE + 3];
 
-    dataPacket[0] = 2;
-    dataPacket[1] = FRAME_SIZE & 0xff;
-    dataPacket[2] = (FRAME_SIZE << 8) & 0xff;
+    size_t bytesRead;
+        dataPacket[0] = 2;
 
-    while(fread(&dataPacket[3], 1, FRAME_SIZE, file) > 0){
+    while((bytesRead = fread(&dataPacket[3], 1, FRAME_SIZE, file)) > 0){
+        dataPacket[1] = bytesRead & 0xFF;
+        dataPacket[2] = (bytesRead >> 8) & 0xFF;
+
         if(llwrite(dataPacket, FRAME_SIZE+3) != FRAME_SIZE+3){
             printf("ERROR: Error writing a data packet.\n");
 
