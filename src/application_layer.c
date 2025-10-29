@@ -89,7 +89,6 @@ int applicationReciever(const char *filename){
                 fprintf(stderr, "ERROR:Received more data than supported. received %i\n", data_length);
             }
             // Write data to file
-            printf("length %d\n", data_length);
             size_t written = fwrite(ptr, 1, data_length, fp);
             if (written != data_length) {
                 fprintf(stderr, "ERROR:Failed to write full data block to file");
