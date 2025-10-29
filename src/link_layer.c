@@ -477,7 +477,7 @@ int llclose()
         if(receive_S(A_T_COMMAND, C_DISC, parameters.timeout) != 0) return -1;
   
         unsigned char discR[5] = {F, A_R_COMMAND, C_DISC, A_R_COMMAND ^ C_DISC, F};
-        printf("gello\n");
+
         //send DISC receive UA
         if(send_frame_wait_response(discR, 5, A_R_COMMAND, C_UA, parameters.nRetransmissions, parameters.timeout) != 0) return -1;
         closeSerialPort();

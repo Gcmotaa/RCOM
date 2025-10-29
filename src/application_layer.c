@@ -18,9 +18,12 @@ int applicationReciever(){
     while (TRUE)
     {
         unsigned char packet[MAX_PAYLOAD_SIZE];
-        if (llread(packet) != 0){
+        int bytes = llread(packet);
+        if (bytes == -1){
             fprintf(stderr, "ERROR:llread failed\n");
             continue;
+        } else if(bytes == 0){
+            printf("0 bytes read\n");
         }
 
         unsigned char *ptr = packet;
