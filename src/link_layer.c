@@ -68,56 +68,53 @@ void s_statemachine(recieving_S_sm *sm) {
     int bytes;
     bytes = readByteSerialPort(&byte);
 
+    if(!sm) return;
+    if(bytes != 1)return;
     switch (sm->state)
     {
     case INITIAL_S:
-        if(bytes == 1) {
-            if(byte == F) sm->state = RECEIVED_F;
-        }
+        if(byte == F) sm->state = RECEIVED_F;
         break;
 
     case RECEIVED_F:
-        if(bytes == 1) {
-            if(byte == A_T_COMMAND || byte == A_R_COMMAND) {
-                sm->state = RECEIVED_A;
-                sm->A = byte;
-            }
-            else sm->state = INITIAL_S;
+        if(byte == A_T_COMMAND || byte == A_R_COMMAND) {
+            sm->state = RECEIVED_A;
+            sm->A = byte;
         }
+        else sm->state = INITIAL_S;
         break;
 
     case RECEIVED_A:
-        if(bytes == 1) {
-            if(byte == C_SET || byte == C_UA ||
-                byte == C_RR || byte == (C_RR | 0x01) ||
-                byte == C_REJ || byte == (C_REJ | 0x01) ||
-                byte == C_DISC){
-                sm->state = RECEIVED_C;
-                sm->C = byte;
-                }
-        }
+        if(byte == C_SET || byte == C_UA ||
+            byte == C_RR || byte == (C_RR | 0x01) ||
+            byte == C_REJ || byte == (C_REJ | 0x01) ||
+            byte == C_DISC){
+            sm->state = RECEIVED_C;
+            sm->C = byte;
+            }
+        else sm->state = INITIAL_S;
         break;
 
     case RECEIVED_C:
-        if(bytes == 1) {
-            if(byte == (sm->A ^ sm->C)) 
-                sm->state = RECEIVED_BCC1;
-        }
+        if(byte == (sm->A ^ sm->C)) 
+            sm->state = RECEIVED_BCC1;
+        else sm->state = INITIAL_S;
         break;
 
     case RECEIVED_BCC1:
-        if(bytes == 1) {
-            if(byte == F) sm->state = END_S;
-        }
+        if(byte == F) sm->state = END_S;
+        else sm->state = INITIAL_S;
         break;
     case END_S:
         break;
     default:
+        sm->state = INITIAL_S;
         break;
     }
 }
 
 void updateRecievingIState(recieving_I_state *state, unsigned char byte, unsigned char* header){
+    
     switch (*state)
     {
     case INITIAL_I:
@@ -185,6 +182,8 @@ int setup_alarm_handler(void) {
 int receive_S(unsigned char A, unsigned char C, int timeout) {
     recieving_S_sm sm;
     sm.state = INITIAL_S;
+    sm.A = 0;
+    sm.C = 0;
 
     alarmEnabled = TRUE;
     alarm(timeout);
@@ -282,11 +281,12 @@ int llwrite(const unsigned char *buf, int bufSize)
     *(bytes+3) = A_T_COMMAND ^ (Ns << 7);
 
     for(int i = 0; i < bufSize; i++){
-        bcc2 = bcc2 ^ *(buf+i);
+        unsigned char b = buf[i];
+        bcc2 = bcc2 ^ b;
 
-        if(*(buf+i) == 0x7e || *(buf+i) == 0x7d){ //if we need byte stuffing
+        if(b == F || b == ESCAPE_OCTET){ //if we need byte stuffing
             *(bytes+finalSize) = 0x7d;
-            *(bytes+finalSize+1) = *(buf+i) ^ 0x20;
+            *(bytes+finalSize+1) = b ^ 0x20;
 
             finalSize += 2;
             continue;
@@ -297,8 +297,8 @@ int llwrite(const unsigned char *buf, int bufSize)
     }
 
     //stuffing of bcc2
-    if (bcc2 == 0x7e || bcc2 == 0x7d){
-        *(bytes+finalSize) = 0x7d;
+    if (bcc2 == F || bcc2 == ESCAPE_OCTET){
+        *(bytes+finalSize) = ESCAPE_OCTET;
         *(bytes+finalSize+1) = bcc2 ^ 0x20;
 
         finalSize += 2;
@@ -308,7 +308,7 @@ int llwrite(const unsigned char *buf, int bufSize)
         finalSize++;
     }
 
-    *(bytes+finalSize+1) = F;
+    *(bytes+finalSize) = F;
 
     finalSize++;
 
@@ -338,7 +338,7 @@ int llwrite(const unsigned char *buf, int bufSize)
             s_statemachine(&sm);
         }
 
-        if (sm.C == (C_RR || nextNs)){ //the frame was correctly recieved
+        if (sm.C == (C_RR | nextNs)){ //the frame was correctly recieved
             Ns = nextNs; //will send a new frame with a new ns
             free(bytes);
             return bufSize;
@@ -350,6 +350,7 @@ int llwrite(const unsigned char *buf, int bufSize)
 
     }
     free(bytes);
+    fprintf(stderr, "LLWRITE ERROR: Retransmissions exceeded\n");
     return -1;
 }
 
@@ -363,7 +364,7 @@ int llread(unsigned char *packet)
     int destuffing = FALSE;
     int index = 0;
     unsigned char expected_bcc2 = 0x0;
-    unsigned char reply[4];
+    unsigned char reply[5];
 
     *(reply) = F;
     *(reply+1) = A_T_COMMAND;
@@ -391,6 +392,7 @@ int llread(unsigned char *packet)
             }
             else if (state == BCC1_RECEIVED){ //if bcc1 is incorrect
                 state = INITIAL_I;
+                continue;
             }
 
             if(state == RECEIVING_DATA){
@@ -400,7 +402,7 @@ int llread(unsigned char *packet)
                 }
                 
                 if(destuffing == TRUE){
-                    byte = byte || 0x20;
+                    byte = byte | 0x20;
                     destuffing = FALSE;
                 }
 
@@ -422,7 +424,7 @@ int llread(unsigned char *packet)
         if(*(header+1) == Ns << 7){ //check if the ns we received are the one we are expecting
             Ns = (Ns == 1 ? 0 : 1); //change ns
 
-            *(reply+2) = C_RR || Ns;
+            *(reply+2) = C_RR | Ns;
             *(reply+3) = *(reply+1) ^ *(reply+2);
 
             writeBytesSerialPort(reply, 4); //reply "send me new frame"
@@ -435,14 +437,15 @@ int llread(unsigned char *packet)
     }
 
     if(*(header+1) == Ns << 7){ //check if the ns we received are the one we are expecting
-        *(reply+2) = C_REJ || Ns;
+        *(reply+2) = C_REJ | Ns;
         *(reply+3) = *(reply+1) ^ *(reply+2);
 
         writeBytesSerialPort(reply, 4); //send REJ(Ns)
+        printf("SUP\n");
         return -1;
     }
     else{ //it is not the one we are expecting
-        *(reply+2) = C_RR || Ns;
+        *(reply+2) = C_RR | Ns;
         *(reply+3) = *(reply+1) ^ *(reply+2);
 
         writeBytesSerialPort(reply, 4); //reply "send me new frame"
