@@ -102,6 +102,7 @@ int applicationReciever(const char *filename){
             if(fp != NULL) fclose(fp);
             if (bytes_written != file_size)
                 fprintf(stderr, "ERROR:expected %u bytes, got %u\n", file_size, bytes_written);
+            printf("File received, ending program\n");
             return 0;
             break;
         

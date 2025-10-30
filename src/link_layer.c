@@ -460,7 +460,6 @@ int llread(unsigned char *packet)
 
         writeBytesSerialPort(reply, 5); //send REJ(Ns)
         fprintf(stderr, "LLREAD ERROR: wrong NS\n");
-        printf("C = %x, ns = %x\n", header[1], Ns);
         return -1;
     }
     else{ //it is not the one we are expecting
