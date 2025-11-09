@@ -439,18 +439,17 @@ int llread(unsigned char *packet)
 
         if(*(header+1) == (Ns << 7)){ //check if the ns we received are the one we are expecting
             Ns = (Ns == 1 ? 0 : 1); //change ns
-
-            *(reply+2) = C_RR | Ns;
-            *(reply+3) = *(reply+1) ^ *(reply+2);
-            *(reply+4) = F;
-
-            writeBytesSerialPort(reply, 5); //reply "send me new frame"
-            return index - 1; //minus 1 to not count the bcc2
         }
         else{ //it is not the one we are expecting
-            return 0;
+            index = 1;
         }
        
+        *(reply+2) = C_RR | Ns;
+        *(reply+3) = *(reply+1) ^ *(reply+2);
+        *(reply+4) = F;
+
+        writeBytesSerialPort(reply, 5); //reply "send me new frame"
+        return index - 1; //minus 1 to not count the bcc2
     }
 
     if(*(header+1) == (Ns << 7)){ //check if the ns we received are the one we are expecting
