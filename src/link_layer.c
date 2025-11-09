@@ -490,7 +490,7 @@ int llclose()
         unsigned char UA[5] = {F, A_R_COMMAND, C_UA, A_R_COMMAND ^ C_UA, F};
         //send UA
         if(writeBytesSerialPort(UA,5) != 5 ) return -1;
-
+        sleep(1);
         closeSerialPort();
         break;
     case LlRx:
