@@ -9,7 +9,7 @@
 #include <fcntl.h>
 
 #define SERVER_PORT 21
-#define BUFFER_SIZE 1024 
+#define BUFFER_SIZE 2048 //temporary fix, need to add loop to get reply
 
 int get_reply(int socket, char *buffer, int buffer_size) {
     int bytes = read(socket, buffer, buffer_size - 1);
@@ -70,8 +70,8 @@ int main(int argc, char *argv[]) {
         host = at + 1;  // part after '@'
     } else {
         // No credentials
-        user = NULL;
-        password = NULL;
+        user = "anonymous";
+        password = "anonymous";
         host = url;
     }
 
@@ -138,17 +138,13 @@ int main(int argc, char *argv[]) {
 
     get_reply(control_socket, buf, BUFFER_SIZE);
 
-    if(user) {
-        snprintf(buf, sizeof(buf), "USER %s\r\n", user);
-        send_command(control_socket, buf);
-        get_reply(control_socket, buf, BUFFER_SIZE);
-    }
+    snprintf(buf, sizeof(buf), "USER %s\r\n", user);
+    send_command(control_socket, buf);
+    get_reply(control_socket, buf, BUFFER_SIZE);
 
-    if(password) {
-        snprintf(buf, sizeof(buf), "PASS %s\r\n", password);
-        send_command(control_socket, buf);
-        get_reply(control_socket, buf, BUFFER_SIZE);
-    }
+    snprintf(buf, sizeof(buf), "PASS %s\r\n", password);
+    send_command(control_socket, buf);
+    get_reply(control_socket, buf, BUFFER_SIZE);
 
     send_command(control_socket, "PASV\r\n");
     get_reply(control_socket, buf, BUFFER_SIZE);
