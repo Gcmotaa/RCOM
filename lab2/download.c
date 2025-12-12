@@ -49,7 +49,8 @@ int main(int argc, char *argv[]) {
 
     url += strlen(prefix);  // move pointer past ftp://
 
-    char *user = NULL, *password = NULL, *host = NULL, *url_path = NULL;
+    char *user = NULL, *password = NULL, *host = NULL;
+    char url_path[200];
 
     // Check if credentials are present
     char *at = strchr(url, '@');
@@ -82,8 +83,9 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    strcpy(url_path, slash);
     *slash = '\0';
-    url_path = slash + 1;
+
 
     printf("Parsed values:\n");
     printf("User:      %s\n", user ? user : "(none)");
@@ -193,7 +195,7 @@ int main(int argc, char *argv[]) {
 
     FILE *fp = fopen(filename, "wb");  
     if(!fp) {
-        perror("open()");
+        perror("fopen()");
         exit(-1);
     }
     do
