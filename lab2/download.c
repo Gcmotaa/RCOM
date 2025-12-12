@@ -9,7 +9,7 @@
 #include <fcntl.h>
 
 #define SERVER_PORT 21
-#define BUFFER_SIZE 2048 //temporary fix, need to add loop to get reply
+#define BUFFER_SIZE 2048
 
 int get_reply(int socket, char *buffer, int buffer_size) {
     int bytes = read(socket, buffer, buffer_size - 1);
@@ -31,7 +31,7 @@ int send_command(int socket, char *cmd) {
 }
 int main(int argc, char *argv[]) {
     struct hostent *h;
-    int a1, a2, a3, a4, p1, p2, data_port;       //PASV Information
+    int a1, a2, a3, a4, p1, p2, data_port;
 
     if (argc != 2) {
         fprintf(stderr, "Usage: %s <server IP address>\n", argv[0]);
@@ -40,7 +40,6 @@ int main(int argc, char *argv[]) {
 
     char *url = argv[1];
 
-    // Check prefix
     const char *prefix = "ftp://";
     if (strncmp(url, prefix, strlen(prefix)) != 0) {
         fprintf(stderr, "Invalid URL: must start with ftp://\n");
@@ -52,7 +51,7 @@ int main(int argc, char *argv[]) {
     char *user = NULL, *password = NULL, *host = NULL;
     char url_path[200];
 
-    // Check if credentials are present
+    
     char *at = strchr(url, '@');
     if (at) {
         // Credentials exist
